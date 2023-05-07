@@ -8,12 +8,24 @@ void ctest_fail_test(void);
 _Noreturn void ctest_drop_test(void);
 _Noreturn void ctest_skip_test(void);
 
-#define CTEST_TEST(test_name) \
-	static void test_name(void);                                                       \
-	__attribute__((constructor)) static void test_name ## __init(void) {               \
-		ctest_run(test_name, # test_name);                                         \
-	}                                                                                  \
-	static void test_name(void)
+/**
+ * @brief Add a test case within a test suite. Parameters must be expanded.
+ */
+#define CTEST__TEST(tsuite, tcase) \
+	static void tsuite ## tcase(void);                                          \
+	__attribute__((constructor)) static void tsuite ## tcase ##  __init(void) { \
+		ctest_run(tsuite ## tcase, #tsuite "." #tcase);                     \
+	}                                                                           \
+	static void tsuite ## tcase(void)
+
+/**
+ * @brief Add a test case within a test suite. Parameters can be macros.
+ *
+ * @param tsuite a name of the test suite
+ * @param tcase a name of the test case with a suite
+ */
+#define CTEST_TEST(test_suite, test_case) \
+	CTEST__TEST(test_suite, test_case)
 
 #define CTEST__LOG_FAIL() \
 	fprintf(stderr, "%s:%d: Failure\n", __FILE__, __LINE__)
@@ -197,4 +209,5 @@ int main() {
 }
 
 #undef CTEST_IMPLEMENTATION
+
 #endif

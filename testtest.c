@@ -7,7 +7,7 @@ int fib(int n) {
 	return fib(n - 1) + fib(n - 2);
 }
 
-TEST(Fibonacci) {
+TEST(Fibonacci, Basic) {
 	ASSERT_EQ(fib(0), 0);
 	ASSERT_EQ(fib(1), 1);
 	ASSERT_EQ(fib(2), 1);
