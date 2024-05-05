@@ -1,6 +1,7 @@
 #ifndef CTEST_H
 #define CTEST_H __FILE__
 
+#include <assert.h>
 #include <stdio.h>
 
 void ctest_run(void(void), const char*);
@@ -38,12 +39,12 @@ _Noreturn void ctest_skip_test(void);
 #define CTEST_SKIP() ctest_skip_test()
 
 #define CTEST__CMP_XMACRO(X) \
-	X(LT, <)             \
+	X(LT,  <)            \
 	X(LE, <=)            \
 	X(EQ, ==)            \
 	X(NE, !=)            \
 	X(GE, >=)            \
-	X(GT, >)             \
+	X(GT,  >)            \
 
 enum ctest__cmp {
 	#define X(name, op)  CTEST__CMP_ ## name,
@@ -51,11 +52,19 @@ enum ctest__cmp {
 	#undef X
 };
 
-static inline void ctest__cmp_unsigned() { }
-static inline void ctest__cmp_double() { }
-static inline void ctest__cmp_str() { }
-static inline void ctest__cmp_ptr() { }
+static inline const char *ctest__cmp_to_str(enum ctest__cmp cmp) {
+	#define X(OP,STR) if (cmp == CTEST__CMP_ ## OP) return #STR;
+	CTEST__CMP_XMACRO(X)
+	#undef X
+	assert(!"Invalid ctest__cmp");
+}
 
+//static inline void ctest__cmp_unsigned() { }
+//static inline void ctest__cmp_double() { }
+static inline void ctest__cmp_str() { }
+//static inline void ctest__cmp_ptr() { }
+
+#if 0
 static inline void ctest__cmp_signed(const char *fname, int lineno,
                                      signed long long a, const char *a_str,
                                      enum ctest__cmp cmp,
@@ -76,6 +85,33 @@ static inline void ctest__cmp_signed(const char *fname, int lineno,
 	if (drop_on_failure) ctest_drop_test();
 	else                 ctest_fail_test();
 }
+#endif
+
+#define CTEST__CMP_FUNC_IMPL(FNAME, TYPE, FMT, X) \
+static inline void FNAME( \
+	const char *fpath, int lineno, \
+	TYPE a, const char * a_str, \
+	enum ctest__cmp cmp, \
+	TYPE b, const char * b_str, \
+	_Bool drop_on_failure \
+) { \
+	CTEST__CMP_XMACRO(X) \
+	fprintf(stderr, "%s:%d: Failure\n", fpath, lineno); \
+	fprintf(stderr, "Expected: (%s) %s (%s), got\n", \
+		a_str, ctest__cmp_to_str(cmp), b_str); \
+	fprintf(stderr, "  lhs=" FMT "\n", a); \
+	fprintf(stderr, "  rhs=" FMT "\n", b); \
+	fprintf(stderr, "\n"); \
+	if (drop_on_failure) ctest_drop_test(); \
+	else                 ctest_fail_test(); \
+}
+
+#define X(name, op) if (cmp == CTEST__CMP_ ## name && a op b) return;
+CTEST__CMP_FUNC_IMPL(ctest__cmp_signed,     long long signed, "%lld", X)
+CTEST__CMP_FUNC_IMPL(ctest__cmp_unsigned, long long unsigned, "%llu", X)
+CTEST__CMP_FUNC_IMPL(ctest__cmp_double,               double,   "%g", X)
+CTEST__CMP_FUNC_IMPL(ctest__cmp_ptr,   const volatile void *,   "%p", X)
+#undef X
 
 #define CTEST__CMP(a, cmp, b, drop_on_fail) \
 _Generic(1 ? (a) : (b) \
@@ -93,10 +129,15 @@ _Generic(1 ? (a) : (b) \
 	, unsigned long long: ctest__cmp_unsigned \
 	, float: ctest__cmp_double \
 	, double: ctest__cmp_double \
-	, const char*: ctest__cmp_str \
-	, char*: ctest__cmp_str \
 	, default: ctest__cmp_ptr \
 )(__FILE__, __LINE__, a, #a, CTEST__CMP_ ## cmp, b, #b, drop_on_fail)
+
+/*
+	, const char*: ctest__cmp_str \
+	, char*: ctest__cmp_str \
+*/
+
+#if 0
 
 #define CTEST_ASSERT_TRUE(pred) do {                       \
 	if (pred); else {                                  \
@@ -172,6 +213,7 @@ static inline void ctest__print_ptr(const void *val) {
 
 //#define CTEST_ASSERT_EQ(a, b) CTEST_ASSERT__CMP(a, ==, b)
 //#define CTEST_EXPECT_EQ(a, b) CTEST_EXPECT__CMP(a, ==, b)
+#endif
 
 //#define CTEST_ASSERT_EQ(a, b) CTEST_ASSERT__CMP(a, ==, b)
 #define CTEST_EXPECT_EQ(a, b) CTEST__CMP(a, EQ, b, 0)

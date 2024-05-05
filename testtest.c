@@ -27,3 +27,13 @@ TEST(Fibonacci, Fail) {
 TEST(Fibonacci, Skip) {
 	SKIP();
 }
+
+TEST(Types, Basic) {
+	EXPECT_EQ('a', 'a');
+	char c = 'c';
+	EXPECT_EQ(c, c);
+	EXPECT_EQ(1u, 1u);
+	EXPECT_EQ(1u, 1.0);
+	float f = 1;
+	EXPECT_EQ(&c, (char*)&f);
+}
