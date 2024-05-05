@@ -6,6 +6,7 @@ void ctest_fail_test(void);
 void ctest_drop_test_loud(const char *fpath, int line);
 void ctest_drop_test(void);
 void ctest_skip_test(void);
+int  ctest_failed(void);
 
 /**
  * @brief Add a test case within a test suite. Parameters must be expanded.
@@ -249,6 +250,10 @@ void ctest_skip_test(void) {
 	if (ctest_status != CTEST_FAILURE)
 		ctest_status = CTEST_SKIPPED;
 	longjmp(ctest_longjmp_env, 1);
+}
+
+int ctest_failed(void) {
+	return ctest_status == CTEST_FAILURE;
 }
 
 static const char *ctest_status_string[] = {
