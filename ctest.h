@@ -1,15 +1,11 @@
 #ifndef CTEST_H
 #define CTEST_H __FILE__
 
-#include <assert.h>
-#include <stdio.h>
-#include <string.h>
-
 void ctest_run(void(void), const char*);
-void ctest_failure(const char *fpath, int line);
 void ctest_fail_test(void);
-_Noreturn void ctest_drop_test(void);
-_Noreturn void ctest_skip_test(void);
+void ctest_drop_test_loud(const char *fpath, int line);
+void ctest_drop_test(void);
+void ctest_skip_test(void);
 
 /**
  * @brief Add a test case within a test suite. Parameters must be expanded.
@@ -30,8 +26,7 @@ _Noreturn void ctest_skip_test(void);
 #define CTEST_TEST(test_suite, test_case) \
 	CTEST__TEST(test_suite, test_case)
 
-
-#define CTEST_FAIL() ctest_failure(__FILE__, __LINE__)
+#define CTEST_FAIL() ctest_drop_test_loud(__FILE__, __LINE__)
 #define CTEST_SKIP() ctest_skip_test()
 
 enum ctest__cmp {
@@ -43,64 +38,17 @@ enum ctest__cmp {
 	CTEST__CMP_GE,
 };
 
-#define CTEST__CMP_XMACRO(X) \
-	X(EQ, ==)            \
-	X(NE, !=)            \
-	X(LT,  <)            \
-	X(LE, <=)            \
-	X(GT,  >)            \
-	X(GE, >=)            \
-
-static inline const char *ctest__cmp_to_str(enum ctest__cmp cmp) {
-	#define X(OP,STR) if (cmp == CTEST__CMP_ ## OP) return #STR;
-	CTEST__CMP_XMACRO(X)
-	#undef X
-	assert(!"Invalid ctest__cmp");
-}
-
-static inline void ctest__check_bool(
-	const char *fpath, int lineno,
-	_Bool a, const char * a_str,
-	_Bool b,
-	_Bool drop_on_failure
-) {
-	if (a == b) return;
-	fprintf(stderr, "%s:%d: Failure\n", fpath, lineno);
-	fprintf(stderr, "Expected: (%s) to be %s\n",
-		a_str, b ? "true" : "false");
-
-	if (drop_on_failure) ctest_drop_test();
-	else                 ctest_fail_test();
-}
-
-#define CTEST__CMP_FUNC_IMPL(FNAME, TYPE, FMT, X) \
-static inline void FNAME( \
-	const char *fpath, int lineno, \
-	TYPE a, const char * a_str, \
-	enum ctest__cmp cmp, \
-	TYPE b, const char * b_str, \
-	_Bool drop_on_failure \
-) { \
-	CTEST__CMP_XMACRO(X) \
-	fprintf(stderr, "%s:%d: Failure\n", fpath, lineno); \
-	fprintf(stderr, "Expected: %s %s %s, got\n", \
-		a_str, ctest__cmp_to_str(cmp), b_str); \
-	fprintf(stderr, "  lhs=" FMT "\n", a); \
-	fprintf(stderr, "  rhs=" FMT "\n", b); \
-	fprintf(stderr, "\n"); \
-	if (drop_on_failure) ctest_drop_test(); \
-	else                 ctest_fail_test(); \
-}
-
-#define X(name, op) if (cmp == CTEST__CMP_ ## name && a op b) return;
-CTEST__CMP_FUNC_IMPL(ctest__cmp_signed,     long long signed, "%lld", X)
-CTEST__CMP_FUNC_IMPL(ctest__cmp_unsigned, long long unsigned, "%llu", X)
-CTEST__CMP_FUNC_IMPL(ctest__cmp_double,               double,   "%g", X)
-CTEST__CMP_FUNC_IMPL(ctest__cmp_ptr,   const volatile void *,   "%p", X)
-#undef X
-#define X(name, op) if (cmp == CTEST__CMP_ ## name && strcmp(a,b) op 0) return;
-CTEST__CMP_FUNC_IMPL(ctest__cmp_str, const char *, "\"%s\"", X)
-#undef X
+void ctest__cmp_signed(const char *, int, long long signed, const char *,
+                       enum ctest__cmp, long long signed, const char *, _Bool);
+void ctest__cmp_unsigned(const char *, int, long long unsigned, const char *,
+                       enum ctest__cmp, long long unsigned, const char *, _Bool);
+void ctest__cmp_double(const char *, int, double, const char *,
+                       enum ctest__cmp, double, const char *, _Bool);
+void ctest__cmp_str(const char *, int, const char *, const char *,
+                       enum ctest__cmp, const char *, const char *, _Bool);
+void ctest__cmp_ptr(const char *, int, const volatile void *, const char *,
+                       enum ctest__cmp, const volatile void *, const char *, _Bool);
+void ctest__check_bool(const char *, int, _Bool, const char *, _Bool, _Bool);
 
 #define CTEST_ASSERT_TRUE(pred) \
 	ctest__check_bool(__FILE__, __LINE__, (pred), #pred, 1, 1)
@@ -202,8 +150,71 @@ _Generic(1 ? (a) : (b) \
 
 #ifdef CTEST_IMPLEMENTATION
 
+#include <assert.h>
 #include <setjmp.h>
 #include <stdlib.h>
+#include <stdio.h>
+#include <string.h>
+
+#define CTEST__CMP_XMACRO(X) \
+	X(EQ, ==)            \
+	X(NE, !=)            \
+	X(LT,  <)            \
+	X(LE, <=)            \
+	X(GT,  >)            \
+	X(GE, >=)            \
+
+static inline const char *ctest__cmp_to_str(enum ctest__cmp cmp) {
+	#define X(OP,STR) if (cmp == CTEST__CMP_ ## OP) return #STR;
+	CTEST__CMP_XMACRO(X)
+	#undef X
+	assert(!"Invalid ctest__cmp");
+}
+
+void ctest__check_bool(
+	const char *fpath, int lineno,
+	_Bool a, const char * a_str,
+	_Bool b,
+	_Bool drop_on_failure
+) {
+	if (a == b) return;
+	fprintf(stderr, "%s:%d: Failure\n", fpath, lineno);
+	fprintf(stderr, "Expected: (%s) to be %s\n",
+		a_str, b ? "true" : "false");
+
+	if (drop_on_failure) ctest_drop_test();
+	else                 ctest_fail_test();
+}
+
+#define CTEST__CMP_FUNC_IMPL(FNAME, TYPE, FMT, X) \
+void FNAME( \
+	const char *fpath, int lineno, \
+	TYPE a, const char * a_str, \
+	enum ctest__cmp cmp, \
+	TYPE b, const char * b_str, \
+	_Bool drop_on_failure \
+) { \
+	CTEST__CMP_XMACRO(X) \
+	fprintf(stderr, "%s:%d: Failure\n", fpath, lineno); \
+	fprintf(stderr, "Expected: %s %s %s, got\n", \
+		a_str, ctest__cmp_to_str(cmp), b_str); \
+	fprintf(stderr, "  lhs=" FMT "\n", a); \
+	fprintf(stderr, "  rhs=" FMT "\n", b); \
+	fprintf(stderr, "\n"); \
+	if (drop_on_failure) ctest_drop_test(); \
+	else                 ctest_fail_test(); \
+}
+
+#define X(name, op) if (cmp == CTEST__CMP_ ## name && a op b) return;
+CTEST__CMP_FUNC_IMPL(ctest__cmp_signed,     long long signed, "%lld", X)
+CTEST__CMP_FUNC_IMPL(ctest__cmp_unsigned, long long unsigned, "%llu", X)
+CTEST__CMP_FUNC_IMPL(ctest__cmp_double,               double,   "%g", X)
+CTEST__CMP_FUNC_IMPL(ctest__cmp_ptr,   const volatile void *,   "%p", X)
+#undef X
+#define X(name, op) if (cmp == CTEST__CMP_ ## name && strcmp(a,b) op 0) return;
+CTEST__CMP_FUNC_IMPL(ctest__cmp_str, const char *, "\"%s\"", X)
+#undef X
+
 
 enum ctest_status {
 	CTEST_RUNNING,
@@ -231,7 +242,7 @@ void ctest_fail_test(void) {
 	ctest_status = CTEST_FAILURE;
 }
 
-void ctest_failure(const char *fpath, int line) {
+void ctest_drop_test_loud(const char *fpath, int line) {
 	fprintf(stderr, "%s:%d: Failure\n", fpath, line);
 	ctest_drop_test(); \
 }
