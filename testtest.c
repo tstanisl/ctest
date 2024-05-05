@@ -16,3 +16,14 @@ TEST(Fibonacci, Basic) {
 	ASSERT_EQ(fib(5), 5);
 	ASSERT_EQ(fib(6), 8);
 }
+
+TEST(Fibonacci, Fail) {
+	EXPECT_EQ(1+1,1);
+	EXPECT_EQ(1+1,2);
+	ASSERT_EQ(2+2,4);
+	ASSERT_EQ(2+2,5);
+}
+
+TEST(Fibonacci, Skip) {
+	SKIP();
+}

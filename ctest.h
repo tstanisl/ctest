@@ -51,20 +51,34 @@ enum ctest__cmp {
 	#undef X
 };
 
-static inline int ctest__cmp_signed(const char *fname, int lineno,
-                                    signed long long a, enum ctest__cmp cmp, signed long long b) {
-	_Bool result;
+static inline void ctest__cmp_unsigned() { }
+static inline void ctest__cmp_double() { }
+static inline void ctest__cmp_str() { }
+static inline void ctest__cmp_ptr() { }
+
+static inline void ctest__cmp_signed(const char *fname, int lineno,
+                                     signed long long a, const char *a_str,
+                                     enum ctest__cmp cmp,
+				     signed long long b, const char *b_str,
+				     _Bool drop_on_failure
+) {
+	_Bool passed;
+	const char * op_str;
 	switch (cmp) {
-	#define X(name, op) case CTEST__CMP_ ## name: result = a op b; break;
+	#define X(name, op) case CTEST__CMP_ ## name: passed = a op b; op_str = #op; break;
 	CTEST__CMP_XMACRO(X)
 	#undef X
 	}
-	if (result) return 1;
-	fprintf(stderr, "%s:%d: Failure\n  lhs=%lld\n  rhs=%lld\n", fname, lineno, a, b);
-	return 0;
+
+	if (passed) return;
+	fprintf(stderr, "%s:%d: Failure\nExpected: (%s) %s (%s), got\n  lhs=%lld\n  rhs=%lld\n",
+	        fname, lineno, a_str, op_str, b_str, a, b);
+	if (drop_on_failure) ctest_drop_test();
+	else                 ctest_fail_test();
 }
 
-#define CTEST__CMP(a, cmp, b) _Generic(1 ? (a) : (b) \
+#define CTEST__CMP(a, cmp, b, drop_on_fail) \
+_Generic(1 ? (a) : (b) \
 	, _Bool: ctest__cmp_unsigned \
 	, char: ctest__cmp_signed \
 	, signed char: ctest__cmp_signed \
@@ -79,10 +93,10 @@ static inline int ctest__cmp_signed(const char *fname, int lineno,
 	, unsigned long long: ctest__cmp_unsigned \
 	, float: ctest__cmp_double \
 	, double: ctest__cmp_double \
-	, const char*: ctest__cmp_str, \
-	, char*: ctest__cmp_str, \
+	, const char*: ctest__cmp_str \
+	, char*: ctest__cmp_str \
 	, default: ctest__cmp_ptr \
-)(a, cmp, b)
+)(__FILE__, __LINE__, a, #a, CTEST__CMP_ ## cmp, b, #b, drop_on_fail)
 
 #define CTEST_ASSERT_TRUE(pred) do {                       \
 	if (pred); else {                                  \
@@ -159,7 +173,9 @@ static inline void ctest__print_ptr(const void *val) {
 //#define CTEST_ASSERT_EQ(a, b) CTEST_ASSERT__CMP(a, ==, b)
 //#define CTEST_EXPECT_EQ(a, b) CTEST_EXPECT__CMP(a, ==, b)
 
-#define CTEST_ASSERT_EQ(a, b) CTEST_ASSERT__CMP(a, ==, b)
+//#define CTEST_ASSERT_EQ(a, b) CTEST_ASSERT__CMP(a, ==, b)
+#define CTEST_EXPECT_EQ(a, b) CTEST__CMP(a, EQ, b, 0)
+#define CTEST_ASSERT_EQ(a, b) CTEST__CMP(a, EQ, b, 1)
 
 #ifndef CTEST_NO_SHORT_NAMES
 #  define ASSERT_TRUE CTEST_ASSERT_TRUE
@@ -197,10 +213,10 @@ static int ctest_result_count[4];
 #define CTEST_COLOR_DEFAULT "\033[0m"
 
 static const char *ctest_status_string[] = {
-	[CTEST_RUNNING] = CTEST_COLOR_GREEN  "[ RUNNING ]" CTEST_COLOR_DEFAULT,
-	[CTEST_SKIPPED] = CTEST_COLOR_YELLOW "[ SKIPPED ]" CTEST_COLOR_DEFAULT,
-	[CTEST_SUCCESS] = CTEST_COLOR_GREEN  "[ SUCCESS ]" CTEST_COLOR_DEFAULT,
-	[CTEST_FAILURE] = CTEST_COLOR_RED    "[ FAILURE ]" CTEST_COLOR_DEFAULT,
+	[CTEST_RUNNING] = CTEST_COLOR_GREEN  "[ RUNNING    ]" CTEST_COLOR_DEFAULT,
+	[CTEST_SKIPPED] = CTEST_COLOR_YELLOW "[    SKIPPED ]" CTEST_COLOR_DEFAULT,
+	[CTEST_SUCCESS] = CTEST_COLOR_GREEN  "[    SUCCESS ]" CTEST_COLOR_DEFAULT,
+	[CTEST_FAILURE] = CTEST_COLOR_RED    "[    FAILURE ]" CTEST_COLOR_DEFAULT,
 };
 
 static void ctest_dump_status(const char *test_name) {
@@ -259,4 +275,4 @@ int main() {
 
 #undef CTEST_IMPLEMENTATION
 
-#endif
+#endif /* CTEST_IMPLEMENTATION */
