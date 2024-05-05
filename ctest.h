@@ -6,6 +6,7 @@
 #include <string.h>
 
 void ctest_run(void(void), const char*);
+void ctest_failure(const char *fpath, int line);
 void ctest_fail_test(void);
 _Noreturn void ctest_drop_test(void);
 _Noreturn void ctest_skip_test(void);
@@ -29,15 +30,18 @@ _Noreturn void ctest_skip_test(void);
 #define CTEST_TEST(test_suite, test_case) \
 	CTEST__TEST(test_suite, test_case)
 
-#define CTEST__LOG_FAIL() \
 
-
-#define CTEST_FAIL() do {\
-	fprintf(stderr, "%s:%d: Failure\n", __FILE__, __LINE__); \
-	ctest_drop_test(); \
-} while(0)
-
+#define CTEST_FAIL() ctest_failure(__FILE__, __LINE__)
 #define CTEST_SKIP() ctest_skip_test()
+
+enum ctest__cmp {
+	CTEST__CMP_EQ,
+	CTEST__CMP_NE,
+	CTEST__CMP_LT,
+	CTEST__CMP_LE,
+	CTEST__CMP_GT,
+	CTEST__CMP_GE,
+};
 
 #define CTEST__CMP_XMACRO(X) \
 	X(EQ, ==)            \
@@ -46,12 +50,6 @@ _Noreturn void ctest_skip_test(void);
 	X(LE, <=)            \
 	X(GT,  >)            \
 	X(GE, >=)            \
-
-enum ctest__cmp {
-	#define X(name, op)  CTEST__CMP_ ## name,
-	CTEST__CMP_XMACRO(X)
-	#undef X
-};
 
 static inline const char *ctest__cmp_to_str(enum ctest__cmp cmp) {
 	#define X(OP,STR) if (cmp == CTEST__CMP_ ## OP) return #STR;
@@ -152,12 +150,16 @@ _Generic(1 ? (a) : (b) \
 
 #define CTEST_EXPECT_STR_EQ(a, b) CTEST__STR_CMP(a, EQ, b, 0)
 #define CTEST_ASSERT_STR_EQ(a, b) CTEST__STR_CMP(a, EQ, b, 1)
-
-#define CTEST__PTR_CMP(a, cmp, b, drop_on_fail) \
-	ctest__cmp_ptr(__FILE__, __LINE__, a, #a, CTEST__CMP_ ## cmp, b, #b, drop_on_fail)
-
-#define CTEST_EXPECT_PTR_EQ(a, b) CTEST__PTR_CMP(a, EQ, b, 0)
-#define CTEST_ASSERT_PTR_EQ(a, b) CTEST__PTR_CMP(a, EQ, b, 1)
+#define CTEST_EXPECT_STR_NE(a, b) CTEST__STR_CMP(a, NE, b, 0)
+#define CTEST_ASSERT_STR_NE(a, b) CTEST__STR_CMP(a, NE, b, 1)
+#define CTEST_EXPECT_STR_LT(a, b) CTEST__STR_CMP(a, LT, b, 0)
+#define CTEST_ASSERT_STR_LT(a, b) CTEST__STR_CMP(a, LT, b, 1)
+#define CTEST_EXPECT_STR_LE(a, b) CTEST__STR_CMP(a, LE, b, 0)
+#define CTEST_ASSERT_STR_LE(a, b) CTEST__STR_CMP(a, LE, b, 1)
+#define CTEST_EXPECT_STR_GT(a, b) CTEST__STR_CMP(a, GT, b, 0)
+#define CTEST_ASSERT_STR_GT(a, b) CTEST__STR_CMP(a, GT, b, 1)
+#define CTEST_EXPECT_STR_GE(a, b) CTEST__STR_CMP(a, GE, b, 0)
+#define CTEST_ASSERT_STR_GE(a, b) CTEST__STR_CMP(a, GE, b, 1)
 
 #ifndef CTEST_NO_SHORT_NAMES
 #  define ASSERT_TRUE  CTEST_ASSERT_TRUE
@@ -178,8 +180,18 @@ _Generic(1 ? (a) : (b) \
 #  define EXPECT_GE   CTEST_EXPECT_GE
 #  define ASSERT_STR_EQ   CTEST_ASSERT_STR_EQ
 #  define EXPECT_STR_EQ   CTEST_EXPECT_STR_EQ
-#  define ASSERT_PTR_EQ   CTEST_ASSERT_PTR_EQ
-#  define EXPECT_PTR_EQ   CTEST_EXPECT_PTR_EQ
+#  define ASSERT_STR_NE   CTEST_ASSERT_STR_NE
+#  define EXPECT_STR_NE   CTEST_EXPECT_STR_NE
+#  define ASSERT_STR_LT   CTEST_ASSERT_STR_LT
+#  define EXPECT_STR_LT   CTEST_EXPECT_STR_LT
+#  define ASSERT_STR_LE   CTEST_ASSERT_STR_LE
+#  define EXPECT_STR_LE   CTEST_EXPECT_STR_LE
+#  define ASSERT_STR_GT   CTEST_ASSERT_STR_GT
+#  define EXPECT_STR_GT   CTEST_EXPECT_STR_GT
+#  define ASSERT_STR_GE   CTEST_ASSERT_STR_GE
+#  define EXPECT_STR_GE   CTEST_EXPECT_STR_GE
+#  define ASSERT_STR_EQ   CTEST_ASSERT_STR_EQ
+#  define EXPECT_STR_EQ   CTEST_EXPECT_STR_EQ
 #  define FAIL        CTEST_FAIL
 #  define SKIP        CTEST_SKIP
 #  define TEST        CTEST_TEST
@@ -217,6 +229,11 @@ void ctest_drop_test(void) {
 
 void ctest_fail_test(void) {
 	ctest_status = CTEST_FAILURE;
+}
+
+void ctest_failure(const char *fpath, int line) {
+	fprintf(stderr, "%s:%d: Failure\n", fpath, line);
+	ctest_drop_test(); \
 }
 
 void ctest_skip_test(void) {

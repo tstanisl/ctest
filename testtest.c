@@ -42,7 +42,7 @@ TEST(Types, Basic) {
 	EXPECT_EQ(1u, 1u);
 	EXPECT_EQ(1u, 1.0);
 	float f = 1;
-	EXPECT_PTR_EQ(&c, (char*)&f);
+	EXPECT_EQ(&c, (char*)&f);
 
 	int x,y;
 	EXPECT_LT(&x, &y);
