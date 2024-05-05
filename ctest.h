@@ -37,6 +37,53 @@ _Noreturn void ctest_skip_test(void);
 
 #define CTEST_SKIP() ctest_skip_test()
 
+#define CTEST__CMP_XMACRO(X) \
+	X(LT, <)             \
+	X(LE, <=)            \
+	X(EQ, ==)            \
+	X(NE, !=)            \
+	X(GE, >=)            \
+	X(GT, >)             \
+
+enum ctest__cmp {
+	#define X(name, op)  CTEST__CMP_ ## name,
+	CTEST__CMP_XMACRO(X)
+	#undef X
+};
+
+static inline int ctest__cmp_signed(const char *fname, int lineno,
+                                    signed long long a, enum ctest__cmp cmp, signed long long b) {
+	_Bool result;
+	switch (cmp) {
+	#define X(name, op) case CTEST__CMP_ ## name: result = a op b; break;
+	CTEST__CMP_XMACRO(X)
+	#undef X
+	}
+	if (result) return 1;
+	fprintf(stderr, "%s:%d: Failure\n  lhs=%lld\n  rhs=%lld\n", fname, lineno, a, b);
+	return 0;
+}
+
+#define CTEST__CMP(a, cmp, b) _Generic(1 ? (a) : (b) \
+	, _Bool: ctest__cmp_unsigned \
+	, char: ctest__cmp_signed \
+	, signed char: ctest__cmp_signed \
+	, short: ctest__cmp_signed \
+	, int: ctest__cmp_signed \
+	, long: ctest__cmp_signed \
+	, long long: ctest__cmp_signed \
+	, unsigned char: ctest__cmp_unsigned \
+	, unsigned short: ctest__cmp_unsigned \
+	, unsigned int: ctest__cmp_unsigned \
+	, unsigned long: ctest__cmp_unsigned \
+	, unsigned long long: ctest__cmp_unsigned \
+	, float: ctest__cmp_double \
+	, double: ctest__cmp_double \
+	, const char*: ctest__cmp_str, \
+	, char*: ctest__cmp_str, \
+	, default: ctest__cmp_ptr \
+)(a, cmp, b)
+
 #define CTEST_ASSERT_TRUE(pred) do {                       \
 	if (pred); else {                                  \
 		CTEST__LOG_FAIL();                         \
@@ -109,8 +156,10 @@ static inline void ctest__print_ptr(const void *val) {
 	}                                     \
 } while (0)
 
+//#define CTEST_ASSERT_EQ(a, b) CTEST_ASSERT__CMP(a, ==, b)
+//#define CTEST_EXPECT_EQ(a, b) CTEST_EXPECT__CMP(a, ==, b)
+
 #define CTEST_ASSERT_EQ(a, b) CTEST_ASSERT__CMP(a, ==, b)
-#define CTEST_EXPECT_EQ(a, b) CTEST_EXPECT__CMP(a, ==, b)
 
 #ifndef CTEST_NO_SHORT_NAMES
 #  define ASSERT_TRUE CTEST_ASSERT_TRUE
