@@ -132,28 +132,8 @@ CTEST__CMP_FUNC_IMPL(ctest__cmp_ptr,   const volatile void *,   "%p", X)
 CTEST__CMP_FUNC_IMPL(ctest__cmp_str, const char *, "\"%s\"", X)
 #undef X
 
-#define CTEST__CMP(a, cmp, b, drop_on_fail) \
-_Generic(1 ? (a) : (b) \
-	, _Bool: ctest__cmp_unsigned \
-	, char: ctest__cmp_signed \
-	, signed char: ctest__cmp_signed \
-	, short: ctest__cmp_signed \
-	, int: ctest__cmp_signed \
-	, long: ctest__cmp_signed \
-	, long long: ctest__cmp_signed \
-	, unsigned char: ctest__cmp_unsigned \
-	, unsigned short: ctest__cmp_unsigned \
-	, unsigned int: ctest__cmp_unsigned \
-	, unsigned long: ctest__cmp_unsigned \
-	, unsigned long long: ctest__cmp_unsigned \
-	, float: ctest__cmp_double \
-	, double: ctest__cmp_double \
-	, default: ctest__cmp_ptr \
-)(__FILE__, __LINE__, a, #a, CTEST__CMP_ ## cmp, b, #b, drop_on_fail)
 
 /*
-	, const char*: ctest__cmp_str \
-	, char*: ctest__cmp_str \
 */
 
 #if 0
@@ -245,6 +225,27 @@ static inline void ctest__print_ptr(const void *val) {
 #define CTEST_EXPECT_FALSE(pred) \
 	ctest__check_bool(__FILE__, __LINE__, (pred), #pred, 0, 0)
 
+#define CTEST__CMP(a, cmp, b, drop_on_fail) \
+_Generic(1 ? (a) : (b) \
+	, _Bool: ctest__cmp_unsigned \
+	, char: ctest__cmp_signed \
+	, signed char: ctest__cmp_signed \
+	, short: ctest__cmp_signed \
+	, int: ctest__cmp_signed \
+	, long: ctest__cmp_signed \
+	, long long: ctest__cmp_signed \
+	, unsigned char: ctest__cmp_unsigned \
+	, unsigned short: ctest__cmp_unsigned \
+	, unsigned int: ctest__cmp_unsigned \
+	, unsigned long: ctest__cmp_unsigned \
+	, unsigned long long: ctest__cmp_unsigned \
+	, float: ctest__cmp_double \
+	, double: ctest__cmp_double \
+	, const char*: ctest__cmp_str \
+	, char*: ctest__cmp_str \
+	, default: ctest__cmp_ptr \
+)(__FILE__, __LINE__, a, #a, CTEST__CMP_ ## cmp, b, #b, drop_on_fail)
+
 #define CTEST_EXPECT_EQ(a, b) CTEST__CMP(a, EQ, b, 0)
 #define CTEST_ASSERT_EQ(a, b) CTEST__CMP(a, EQ, b, 1)
 
@@ -253,6 +254,12 @@ static inline void ctest__print_ptr(const void *val) {
 
 #define CTEST_EXPECT_STR_EQ(a, b) CTEST__STR_CMP(a, EQ, b, 0)
 #define CTEST_ASSERT_STR_EQ(a, b) CTEST__STR_CMP(a, EQ, b, 1)
+
+#define CTEST__PTR_CMP(a, cmp, b, drop_on_fail) \
+	ctest__cmp_ptr(__FILE__, __LINE__, a, #a, CTEST__CMP_ ## cmp, b, #b, drop_on_fail)
+
+#define CTEST_EXPECT_PTR_EQ(a, b) CTEST__PTR_CMP(a, EQ, b, 0)
+#define CTEST_ASSERT_PTR_EQ(a, b) CTEST__PTR_CMP(a, EQ, b, 1)
 
 #ifndef CTEST_NO_SHORT_NAMES
 #  define ASSERT_TRUE  CTEST_ASSERT_TRUE
@@ -263,6 +270,8 @@ static inline void ctest__print_ptr(const void *val) {
 #  define EXPECT_EQ   CTEST_EXPECT_EQ
 #  define ASSERT_STR_EQ   CTEST_ASSERT_STR_EQ
 #  define EXPECT_STR_EQ   CTEST_EXPECT_STR_EQ
+#  define ASSERT_PTR_EQ   CTEST_ASSERT_PTR_EQ
+#  define EXPECT_PTR_EQ   CTEST_EXPECT_PTR_EQ
 #  define FAIL        CTEST_FAIL
 #  define SKIP        CTEST_SKIP
 #  define TEST        CTEST_TEST

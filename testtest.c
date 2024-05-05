@@ -33,13 +33,16 @@ TEST(Types, Basic) {
 	EXPECT_STR_EQ("hello", txt);
 	EXPECT_STR_EQ("world", txt);
 
+	EXPECT_EQ("hello", txt);
+	EXPECT_EQ("world", txt);
+
 	EXPECT_EQ('a', 'a');
 	char c = 'c';
 	EXPECT_EQ(c, c);
 	EXPECT_EQ(1u, 1u);
 	EXPECT_EQ(1u, 1.0);
 	float f = 1;
-	EXPECT_EQ(&c, (char*)&f);
+	EXPECT_PTR_EQ(&c, (char*)&f);
 
 	ASSERT_TRUE(1);
 	ASSERT_TRUE(NULL);
