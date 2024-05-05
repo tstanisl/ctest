@@ -75,8 +75,6 @@ _Generic(1 ? (a) : (b) \
 	, unsigned long long: ctest__cmp_unsigned \
 	, float: ctest__cmp_double \
 	, double: ctest__cmp_double \
-	, const char*: ctest__cmp_str \
-	, char*: ctest__cmp_str \
 	, default: ctest__cmp_ptr \
 )(__FILE__, __LINE__, a, #a, CTEST__CMP_ ## cmp, b, #b, drop_on_fail)
 
