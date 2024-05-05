@@ -1,7 +1,6 @@
 #ifndef CTEST_H
 #define CTEST_H __FILE__
 
-void ctest_run(void(void), const char*);
 void ctest_fail_test(void);
 void ctest_drop_test_loud(const char *fpath, int line);
 void ctest_drop_test(void);
@@ -9,14 +8,30 @@ void ctest_skip_test(void);
 int ctest_failed(void);
 int ctest_main(int argc, char * argv[]);
 
+typedef struct ctest {
+	const char * name;
+	void (*run)(void);
+	struct ctest * next;
+} ctest;
+
+void ctest_register(ctest *);
+
+#define ctest_entry(ptr, type, member) \
+	(type*)((char*)(1 ? ptr : ((type*)0)->member) + offsetof(type, member))
+
 /**
  * @brief Add a test case within a test suite. Parameters must be expanded.
  */
 #define CTEST__TEST(tsuite, tcase) \
-	static void tsuite ## tcase(void);                                          \
-	__attribute__((constructor)) static void tsuite ## tcase ##  __init(void) { \
-		ctest_run(tsuite ## tcase, #tsuite "." #tcase);                     \
-	}                                                                           \
+	static void tsuite ## tcase(void);              \
+	__attribute__((constructor))                    \
+	static void tsuite ## tcase ##  __init(void) {  \
+		static ctest instance = {               \
+			.name = #tsuite "." #tcase,     \
+			.run = tsuite ## tcase,         \
+		};                                      \
+		ctest_register(&instance);              \
+	}                                               \
 	static void tsuite ## tcase(void)
 
 /**
@@ -268,7 +283,10 @@ static const char *ctest_status_string[] = {
 	[CTEST_FAILURE] = CTEST_COLOR_RED    "[    FAILURE ]" CTEST_COLOR_DEFAULT,
 };
 
-void ctest_run(void test_fun(void), const char *test_name) {
+static ctest * ctest_head;
+static ctest ** ctest_tail_p = &ctest_head;
+
+static void ctest_run(void test_fun(void), const char *test_name) {
 
 	ctest_status = CTEST_RUNNING;
 	fprintf(stderr, "%s: %s\n", ctest_status_string[ctest_status], test_name);
@@ -283,9 +301,18 @@ void ctest_run(void test_fun(void), const char *test_name) {
 	fprintf(stderr, "%s: %s\n", ctest_status_string[ctest_status], test_name);
 }
 
+void ctest_register(ctest * test) {
+	*ctest_tail_p = test;
+	ctest_tail_p = &test->next;
+}
+
 int ctest_main(int argc, char *argv[]) {
 	(void)argc;
 	(void)argv;
+
+	for (ctest * node = ctest_head; node; node = node->next)
+		ctest_run(node->run, node->name);
+
 	int success_cnt = ctest_result_count[CTEST_SUCCESS];
 	int failure_cnt = ctest_result_count[CTEST_FAILURE];
 	int skipped_cnt = ctest_result_count[CTEST_SKIPPED];
