@@ -87,6 +87,21 @@ static inline void ctest__cmp_signed(const char *fname, int lineno,
 }
 #endif
 
+static inline void ctest__check_bool(
+	const char *fpath, int lineno,
+	_Bool a, const char * a_str,
+	_Bool b,
+	_Bool drop_on_failure
+) {
+	if (a == b) return;
+	fprintf(stderr, "%s:%d: Failure\n", fpath, lineno);
+	fprintf(stderr, "Expected: (%s) to be %s\n",
+		a_str, b ? "true" : "false");
+
+	if (drop_on_failure) ctest_drop_test();
+	else                 ctest_fail_test();
+}
+
 #define CTEST__CMP_FUNC_IMPL(FNAME, TYPE, FMT, X) \
 static inline void FNAME( \
 	const char *fpath, int lineno, \
@@ -216,12 +231,24 @@ static inline void ctest__print_ptr(const void *val) {
 #endif
 
 //#define CTEST_ASSERT_EQ(a, b) CTEST_ASSERT__CMP(a, ==, b)
+
+#define CTEST_ASSERT_TRUE(pred) \
+	ctest__check_bool(__FILE__, __LINE__, (pred), #pred, 1, 1)
+#define CTEST_ASSERT_FALSE(pred) \
+	ctest__check_bool(__FILE__, __LINE__, (pred), #pred, 0, 1)
+#define CTEST_EXPECT_TRUE(pred) \
+	ctest__check_bool(__FILE__, __LINE__, (pred), #pred, 1, 0)
+#define CTEST_EXPECT_FALSE(pred) \
+	ctest__check_bool(__FILE__, __LINE__, (pred), #pred, 0, 0)
+
 #define CTEST_EXPECT_EQ(a, b) CTEST__CMP(a, EQ, b, 0)
 #define CTEST_ASSERT_EQ(a, b) CTEST__CMP(a, EQ, b, 1)
 
 #ifndef CTEST_NO_SHORT_NAMES
-#  define ASSERT_TRUE CTEST_ASSERT_TRUE
-#  define EXPECT_TRUE CTEST_EXPECT_TRUE
+#  define ASSERT_TRUE  CTEST_ASSERT_TRUE
+#  define EXPECT_TRUE  CTEST_EXPECT_TRUE
+#  define ASSERT_FALSE CTEST_ASSERT_FALSE
+#  define EXPECT_FALSE CTEST_EXPECT_FALSE
 #  define ASSERT_EQ   CTEST_ASSERT_EQ
 #  define EXPECT_EQ   CTEST_EXPECT_EQ
 #  define FAIL        CTEST_FAIL

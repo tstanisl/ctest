@@ -36,4 +36,8 @@ TEST(Types, Basic) {
 	EXPECT_EQ(1u, 1.0);
 	float f = 1;
 	EXPECT_EQ(&c, (char*)&f);
+
+	ASSERT_TRUE(1);
+	ASSERT_TRUE(NULL);
 }
+
