@@ -44,6 +44,10 @@ TEST(Types, Basic) {
 	float f = 1;
 	EXPECT_PTR_EQ(&c, (char*)&f);
 
+	int x,y;
+	EXPECT_LT(&x, &y);
+	EXPECT_GT(&x, &y);
+
 	ASSERT_TRUE(1);
 	ASSERT_TRUE(NULL);
 
