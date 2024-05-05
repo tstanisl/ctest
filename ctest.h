@@ -6,7 +6,8 @@ void ctest_fail_test(void);
 void ctest_drop_test_loud(const char *fpath, int line);
 void ctest_drop_test(void);
 void ctest_skip_test(void);
-int  ctest_failed(void);
+int ctest_failed(void);
+int ctest_main(int argc, char * argv[]);
 
 /**
  * @brief Add a test case within a test suite. Parameters must be expanded.
@@ -29,6 +30,10 @@ int  ctest_failed(void);
 
 #define CTEST_FAIL() ctest_drop_test_loud(__FILE__, __LINE__)
 #define CTEST_SKIP() ctest_skip_test()
+#define CTEST_MAIN()                       \
+int main(int argc, char *argv[]) {         \
+	return ctest_main(argc, argv);     \
+}
 
 enum ctest__cmp {
 	CTEST__CMP_EQ,
@@ -278,7 +283,9 @@ void ctest_run(void test_fun(void), const char *test_name) {
 	fprintf(stderr, "%s: %s\n", ctest_status_string[ctest_status], test_name);
 }
 
-int main() {
+int ctest_main(int argc, char *argv[]) {
+	(void)argc;
+	(void)argv;
 	int success_cnt = ctest_result_count[CTEST_SUCCESS];
 	int failure_cnt = ctest_result_count[CTEST_FAILURE];
 	int skipped_cnt = ctest_result_count[CTEST_SKIPPED];
