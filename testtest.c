@@ -29,6 +29,10 @@ TEST(Fibonacci, Skip) {
 }
 
 TEST(Types, Basic) {
+	char txt[] = "hello";
+	EXPECT_STR_EQ("hello", txt);
+	EXPECT_STR_EQ("world", txt);
+
 	EXPECT_EQ('a', 'a');
 	char c = 'c';
 	EXPECT_EQ(c, c);
@@ -39,5 +43,6 @@ TEST(Types, Basic) {
 
 	ASSERT_TRUE(1);
 	ASSERT_TRUE(NULL);
+
 }
 

@@ -3,6 +3,7 @@
 
 #include <assert.h>
 #include <stdio.h>
+#include <string.h>
 
 void ctest_run(void(void), const char*);
 void ctest_fail_test(void);
@@ -61,7 +62,7 @@ static inline const char *ctest__cmp_to_str(enum ctest__cmp cmp) {
 
 //static inline void ctest__cmp_unsigned() { }
 //static inline void ctest__cmp_double() { }
-static inline void ctest__cmp_str() { }
+//static inline void ctest__cmp_str() { }
 //static inline void ctest__cmp_ptr() { }
 
 #if 0
@@ -112,7 +113,7 @@ static inline void FNAME( \
 ) { \
 	CTEST__CMP_XMACRO(X) \
 	fprintf(stderr, "%s:%d: Failure\n", fpath, lineno); \
-	fprintf(stderr, "Expected: (%s) %s (%s), got\n", \
+	fprintf(stderr, "Expected: %s %s %s, got\n", \
 		a_str, ctest__cmp_to_str(cmp), b_str); \
 	fprintf(stderr, "  lhs=" FMT "\n", a); \
 	fprintf(stderr, "  rhs=" FMT "\n", b); \
@@ -126,6 +127,9 @@ CTEST__CMP_FUNC_IMPL(ctest__cmp_signed,     long long signed, "%lld", X)
 CTEST__CMP_FUNC_IMPL(ctest__cmp_unsigned, long long unsigned, "%llu", X)
 CTEST__CMP_FUNC_IMPL(ctest__cmp_double,               double,   "%g", X)
 CTEST__CMP_FUNC_IMPL(ctest__cmp_ptr,   const volatile void *,   "%p", X)
+#undef X
+#define X(name, op) if (cmp == CTEST__CMP_ ## name && strcmp(a,b) op 0) return;
+CTEST__CMP_FUNC_IMPL(ctest__cmp_str, const char *, "\"%s\"", X)
 #undef X
 
 #define CTEST__CMP(a, cmp, b, drop_on_fail) \
@@ -244,6 +248,12 @@ static inline void ctest__print_ptr(const void *val) {
 #define CTEST_EXPECT_EQ(a, b) CTEST__CMP(a, EQ, b, 0)
 #define CTEST_ASSERT_EQ(a, b) CTEST__CMP(a, EQ, b, 1)
 
+#define CTEST__STR_CMP(a, cmp, b, drop_on_fail) \
+	ctest__cmp_str(__FILE__, __LINE__, a, #a, CTEST__CMP_ ## cmp, b, #b, drop_on_fail)
+
+#define CTEST_EXPECT_STR_EQ(a, b) CTEST__STR_CMP(a, EQ, b, 0)
+#define CTEST_ASSERT_STR_EQ(a, b) CTEST__STR_CMP(a, EQ, b, 1)
+
 #ifndef CTEST_NO_SHORT_NAMES
 #  define ASSERT_TRUE  CTEST_ASSERT_TRUE
 #  define EXPECT_TRUE  CTEST_EXPECT_TRUE
@@ -251,6 +261,8 @@ static inline void ctest__print_ptr(const void *val) {
 #  define EXPECT_FALSE CTEST_EXPECT_FALSE
 #  define ASSERT_EQ   CTEST_ASSERT_EQ
 #  define EXPECT_EQ   CTEST_EXPECT_EQ
+#  define ASSERT_STR_EQ   CTEST_ASSERT_STR_EQ
+#  define EXPECT_STR_EQ   CTEST_EXPECT_STR_EQ
 #  define FAIL        CTEST_FAIL
 #  define SKIP        CTEST_SKIP
 #  define TEST        CTEST_TEST
