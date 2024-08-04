@@ -10,8 +10,8 @@ int ctest_main(int argc, char * argv[]);
 
 typedef struct ctest {
     const char * name;
-    void (*run)(void);
-    struct ctest * next;
+    void (*run)(struct ctest *);
+    struct ctest * _next;
 } ctest;
 
 void ctest_register(ctest *);
@@ -23,15 +23,20 @@ void ctest_register(ctest *);
  * @brief Add a test case within a test suite. Parameters must be expanded.
  */
 #define CTEST__TEST(tsuite, tcase) \
-    static void tsuite ## tcase(void);             \
-    __attribute__((constructor))                   \
-    static void tsuite ## tcase ##  __init(void) { \
-        static ctest instance = {                  \
-            .name = #tsuite "." #tcase,            \
-            .run = tsuite ## tcase,                \
-        };                                         \
-        ctest_register(&instance);                 \
-    }                                              \
+    static void tsuite ## tcase(void);               \
+    static void tsuite ## tcase ## __wrap(ctest *);  \
+    __attribute__((constructor))                     \
+    static void tsuite ## tcase ##  __init(void) {   \
+        static ctest instance = {                    \
+            .name = #tsuite "." #tcase,              \
+            .run = tsuite ## tcase ## __wrap,        \
+        };                                           \
+        ctest_register(&instance);                   \
+    }                                                \
+    static void tsuite ## tcase ## __wrap(ctest*_) { \
+        (void)_;                                     \
+        tsuite ## tcase ();                          \
+    }                                                \
     static void tsuite ## tcase(void)
 
 /**
@@ -286,32 +291,32 @@ static const char *ctest_status_string[] = {
 static ctest * ctest_head;
 static ctest ** ctest_tail_p = &ctest_head;
 
-static void ctest_run(void test_fun(void), const char *test_name) {
+static void ctest_run(ctest * t) {
 
     ctest_status = CTEST_RUNNING;
-    fprintf(stderr, "%s: %s\n", ctest_status_string[ctest_status], test_name);
+    fprintf(stderr, "%s: %s\n", ctest_status_string[ctest_status], t->name);
 
     if (setjmp(ctest_longjmp_env) == 0)
-        test_fun();
+        t->run(t);
 
     if (ctest_status == CTEST_RUNNING)
         ctest_status = CTEST_SUCCESS;
 
     ctest_result_count[ctest_status]++;
-    fprintf(stderr, "%s: %s\n", ctest_status_string[ctest_status], test_name);
+    fprintf(stderr, "%s: %s\n", ctest_status_string[ctest_status], t->name);
 }
 
 void ctest_register(ctest * test) {
     *ctest_tail_p = test;
-    ctest_tail_p = &test->next;
+    ctest_tail_p = &test->_next;
 }
 
 int ctest_main(int argc, char *argv[]) {
     (void)argc;
     (void)argv;
 
-    for (ctest * node = ctest_head; node; node = node->next)
-        ctest_run(node->run, node->name);
+    for (ctest * node = ctest_head; node; node = node->_next)
+        ctest_run(node);
 
     int success_cnt = ctest_result_count[CTEST_SUCCESS];
     int failure_cnt = ctest_result_count[CTEST_FAILURE];
