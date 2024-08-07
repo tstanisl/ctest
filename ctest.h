@@ -11,7 +11,8 @@ int ctest_main(int argc, char * argv[]);
 typedef struct ctest {
     const char * name;
     void (*run)(struct ctest *);
-    struct ctest * _next;
+    struct ctest * _all_next;
+    struct ctest * _res_next;
 } ctest;
 
 void ctest_register(ctest *);
@@ -245,12 +246,19 @@ enum ctest_status {
     CTEST_SUCCESS,
     CTEST_SKIPPED,
     CTEST_FAILURE,
+    CTEST_STATUS_COUNT_,
 };
 
 static volatile enum ctest_status ctest_status;
 static jmp_buf ctest_longjmp_env;
 
-static int ctest_result_count[4];
+struct ctest_result {
+    int count;
+    ctest * head;
+    ctest ** phead;
+};
+
+static struct ctest_result ctest_result[CTEST_STATUS_COUNT_];
 
 #define CTEST_COLOR_RED     "\033[0;31m"
 #define CTEST_COLOR_GREEN   "\033[0;32m"
@@ -291,6 +299,11 @@ static const char *ctest_status_string[] = {
 static ctest * ctest_head;
 static ctest ** ctest_tail_p = &ctest_head;
 
+void ctest_register(ctest * test) {
+    *ctest_tail_p = test;
+    ctest_tail_p = &test->_all_next;
+}
+
 static void ctest_run(ctest * t) {
 
     ctest_status = CTEST_RUNNING;
@@ -302,37 +315,53 @@ static void ctest_run(ctest * t) {
     if (ctest_status == CTEST_RUNNING)
         ctest_status = CTEST_SUCCESS;
 
-    ctest_result_count[ctest_status]++;
+    struct ctest_result * r = &ctest_result[ctest_status];
+    r->count++;
+    t->_res_next = 0;
+    *r->phead = t;
+    r->phead = &t->_res_next;
+
     fprintf(stderr, "%s: %s\n", ctest_status_string[ctest_status], t->name);
 }
 
-void ctest_register(ctest * test) {
-    *ctest_tail_p = test;
-    ctest_tail_p = &test->_next;
+static void ctest_list_results(enum ctest_status status, _Bool list) {
+    struct ctest_result * res = &ctest_result[status];
+    if (res->count == 0)
+        return;
+
+    const char * status_str = ctest_status_string[status];
+    fprintf(stderr, "%s %d tests.\n", status_str, res->count);
+    if (list) {
+        for (ctest * node = res->head; node; node = node->_res_next)
+            fprintf(stderr, "%s %s\n", status_str, node->name);
+    }
+    fprintf(stderr, CTEST_COLOR_DEFAULT);
 }
 
 int ctest_main(int argc, char *argv[]) {
     (void)argc;
     (void)argv;
 
-    for (ctest * node = ctest_head; node; node = node->_next)
+    for (int i = 0; i < CTEST_STATUS_COUNT_; ++i) {
+        ctest_result[i].count = 0;
+        ctest_result[i].head  = 0;
+        ctest_result[i].phead = &ctest_result[i].head;
+    }
+
+    for (ctest * node = ctest_head; node; node = node->_all_next)
         ctest_run(node);
 
-    int success_cnt = ctest_result_count[CTEST_SUCCESS];
-    int failure_cnt = ctest_result_count[CTEST_FAILURE];
-    int skipped_cnt = ctest_result_count[CTEST_SKIPPED];
-
     fprintf(stderr, "\n=== SUMMARY ===\n\n");
-    fprintf(stderr, "%s%d tests PASSED.\n" CTEST_COLOR_DEFAULT,
-            success_cnt > 0 ? CTEST_COLOR_GREEN : "", success_cnt);
-    fprintf(stderr, "%s%d tests SKIPPED.\n" CTEST_COLOR_DEFAULT,
-            skipped_cnt > 0 ? CTEST_COLOR_YELLOW : "", skipped_cnt);
-    fprintf(stderr, "%s%d tests FAILED.\n" CTEST_COLOR_DEFAULT,
-            failure_cnt > 0 ? CTEST_COLOR_RED : "", failure_cnt);
+    ctest_list_results(CTEST_SUCCESS, 0);
+    ctest_list_results(CTEST_SKIPPED, 1);
+    ctest_list_results(CTEST_FAILURE, 1);
+
+    int failure_cnt = ctest_result[CTEST_FAILURE].count;
     if (failure_cnt == 0) {
         fprintf(stderr, "\nAll tests passed.\n");
         return EXIT_SUCCESS;
     } else {
+        fprintf(stderr, "\n%d tests FAILED.\n", failure_cnt);
         return EXIT_FAILURE;
     }
 }
