@@ -325,6 +325,7 @@ static ctest ** ctest_tail_p = &ctest_head;
 void ctest_register(ctest * test) {
     test->_run_next = 0;
     test->_res_next = 0;
+    test->_all_next = 0;
     *ctest_tail_p = test;
     ctest_tail_p = &test->_all_next;
 }
@@ -414,7 +415,7 @@ static struct ctest_config ctest_get_config(int argc, char ** argv) {
     return cfg;
 }
 
-void ctest_show_help(void) {
+static void ctest_show_help(void) {
     fprintf(stderr,
         "This program contains tests created using CTest framework. "
         "The behavior can be controlled with following options:"
@@ -427,7 +428,7 @@ void ctest_show_help(void) {
     );
 }
 
-int ctest_match(const char * str, const char * rex) {
+static int ctest_match(const char * str, const char * rex) {
     int rlen = strlen(rex);
     int slen = strlen(str);
 
