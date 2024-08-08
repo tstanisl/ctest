@@ -490,8 +490,6 @@ static ctest * ctest_shuffle_run_list(ctest * run_head) {
     ctest * head = 0;
     while (list0 || list1) {
         int id = rand() % 2;
-        printf("id=%d list0=%p list1=%p\n", id, list0, list1);
-        //if ((id == 1 && !list1) || id == 0) {
         if ((id == 0 && list0) || !list1) {
             assert(list0);
             struct ctest * next = list0->_run_next;
@@ -501,7 +499,6 @@ static ctest * ctest_shuffle_run_list(ctest * run_head) {
             continue;
         }
         if ((id == 1 && list1) || !list0) {
-        //if ((id == 0 && !list0) || id == 1) {
             assert(list1);
             struct ctest * next = list1->_run_next;
             list1->_run_next = head;
@@ -510,8 +507,6 @@ static ctest * ctest_shuffle_run_list(ctest * run_head) {
             continue;
         }
     }
-
-    puts("done");
 
     return head;
 }
@@ -561,23 +556,21 @@ int ctest_main(int argc, char *argv[]) {
 
     ctest * run_head = ctest_select_tests(cfg);
 
-    if (cfg.shuffle) {
-        srand(time(0));
-    }
-
     if (cfg.list_tests) {
-        for (ctest * node = run_head; node; node = node->_run_next)
-            fprintf(stdout, "%s\n", node->name);
-        run_head = ctest_shuffle_run_list(run_head);
         for (ctest * node = run_head; node; node = node->_run_next)
             fprintf(stdout, "%s\n", node->name);
         return EXIT_SUCCESS;
     }
 
-    int failure_cnt = ctest_run_tests(cfg, run_head);
+    srand(time(0));
 
-    for (int rep = 1; rep <= cfg.repeat; ++rep) {
-        fprintf(stderr, "\nRepeating test, iteration %d ...\n\n", rep);
+    int failure_cnt = 0;
+    for (int rep = 0; rep <= cfg.repeat; ++rep) {
+        if (cfg.shuffle) {
+            run_head = ctest_shuffle_run_list(run_head);
+        }
+        if (rep > 0)
+            fprintf(stderr, "\nRepeating test, iteration %d ...\n\n", rep);
         failure_cnt += ctest_run_tests(cfg, run_head);
     }
 
