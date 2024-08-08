@@ -450,7 +450,7 @@ int ctest_match(const char * str, const char * rex) {
 }
 
 static ctest * ctest_select_tests(struct ctest_config cfg) {
-    ctest * run_head;
+    ctest * run_head = 0;
     ctest ** run_tail_p = &run_head;
 
     for (ctest * node = ctest_head; node; node = node->_all_next)
