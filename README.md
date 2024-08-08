@@ -7,7 +7,7 @@ Example
 
 ```c
 
-CTEST_IMPLEMENTATION
+#define CTEST_IMPLEMENTATION
 #include <ctest.h>
 
 int fib(int n) {
