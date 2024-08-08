@@ -1,3 +1,27 @@
+/*
+MIT License
+
+Copyright (c) 2024 Tomasz Stanisławski
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+*/
+
 #ifndef CTEST_H
 #define CTEST_H __FILE__
 
@@ -17,10 +41,6 @@ typedef struct ctest {
 } ctest;
 
 void ctest_register(ctest *);
-
-// FIXME: unused
-#define ctest_entry(ptr, type, member) \
-    (type*)((char*)(1 ? ptr : ((type*)0)->member) + offsetof(type, member))
 
 /**
  * @brief Add a test case within a test suite. Parameters must be expanded.
@@ -88,23 +108,23 @@ void ctest__check_bool(const char *, int, _Bool, const char *, _Bool, _Bool);
 #define CTEST_EXPECT_FALSE(pred) \
     ctest__check_bool(__FILE__, __LINE__, (pred), #pred, 0, 0)
 
-#define CTEST__CMP(a, cmp, b, drop_on_fail) \
-_Generic(1 ? (a) : (b) \
-    , _Bool: ctest__cmp_unsigned \
-    , char: ctest__cmp_signed \
-    , signed char: ctest__cmp_signed \
-    , short: ctest__cmp_signed \
-    , int: ctest__cmp_signed \
-    , long: ctest__cmp_signed \
-    , long long: ctest__cmp_signed \
-    , unsigned char: ctest__cmp_unsigned \
-    , unsigned short: ctest__cmp_unsigned \
-    , unsigned int: ctest__cmp_unsigned \
-    , unsigned long: ctest__cmp_unsigned \
+#define CTEST__CMP(a, cmp, b, drop_on_fail)   \
+_Generic(1 ? (a) : (b)                        \
+    , _Bool: ctest__cmp_unsigned              \
+    , char: ctest__cmp_signed                 \
+    , signed char: ctest__cmp_signed          \
+    , short: ctest__cmp_signed                \
+    , int: ctest__cmp_signed                  \
+    , long: ctest__cmp_signed                 \
+    , long long: ctest__cmp_signed            \
+    , unsigned char: ctest__cmp_unsigned      \
+    , unsigned short: ctest__cmp_unsigned     \
+    , unsigned int: ctest__cmp_unsigned       \
+    , unsigned long: ctest__cmp_unsigned      \
     , unsigned long long: ctest__cmp_unsigned \
-    , float: ctest__cmp_double \
-    , double: ctest__cmp_double \
-    , default: ctest__cmp_ptr \
+    , float: ctest__cmp_double                \
+    , double: ctest__cmp_double               \
+    , default: ctest__cmp_ptr                 \
 )(__FILE__, __LINE__, a, #a, CTEST__CMP_ ## cmp, b, #b, drop_on_fail)
 
 #define CTEST_EXPECT_EQ(a, b) CTEST__CMP(a, EQ, b, 0)
@@ -137,22 +157,22 @@ _Generic(1 ? (a) : (b) \
 #define CTEST_ASSERT_STR_GE(a, b) CTEST__STR_CMP(a, GE, b, 1)
 
 #ifndef CTEST_NO_SHORT_NAMES
-#  define ASSERT_TRUE  CTEST_ASSERT_TRUE
-#  define EXPECT_TRUE  CTEST_EXPECT_TRUE
-#  define ASSERT_FALSE CTEST_ASSERT_FALSE
-#  define EXPECT_FALSE CTEST_EXPECT_FALSE
-#  define ASSERT_EQ   CTEST_ASSERT_EQ
-#  define EXPECT_EQ   CTEST_EXPECT_EQ
-#  define ASSERT_NE   CTEST_ASSERT_NE
-#  define EXPECT_NE   CTEST_EXPECT_NE
-#  define ASSERT_LT   CTEST_ASSERT_LT
-#  define EXPECT_LT   CTEST_EXPECT_LT
-#  define ASSERT_LE   CTEST_ASSERT_LE
-#  define EXPECT_LE   CTEST_EXPECT_LE
-#  define ASSERT_GT   CTEST_ASSERT_GT
-#  define EXPECT_GT   CTEST_EXPECT_GT
-#  define ASSERT_GE   CTEST_ASSERT_GE
-#  define EXPECT_GE   CTEST_EXPECT_GE
+#  define ASSERT_TRUE     CTEST_ASSERT_TRUE
+#  define EXPECT_TRUE     CTEST_EXPECT_TRUE
+#  define ASSERT_FALSE    CTEST_ASSERT_FALSE
+#  define EXPECT_FALSE    CTEST_EXPECT_FALSE
+#  define ASSERT_EQ       CTEST_ASSERT_EQ
+#  define EXPECT_EQ       CTEST_EXPECT_EQ
+#  define ASSERT_NE       CTEST_ASSERT_NE
+#  define EXPECT_NE       CTEST_EXPECT_NE
+#  define ASSERT_LT       CTEST_ASSERT_LT
+#  define EXPECT_LT       CTEST_EXPECT_LT
+#  define ASSERT_LE       CTEST_ASSERT_LE
+#  define EXPECT_LE       CTEST_EXPECT_LE
+#  define ASSERT_GT       CTEST_ASSERT_GT
+#  define EXPECT_GT       CTEST_EXPECT_GT
+#  define ASSERT_GE       CTEST_ASSERT_GE
+#  define EXPECT_GE       CTEST_EXPECT_GE
 #  define ASSERT_STR_EQ   CTEST_ASSERT_STR_EQ
 #  define EXPECT_STR_EQ   CTEST_EXPECT_STR_EQ
 #  define ASSERT_STR_NE   CTEST_ASSERT_STR_NE
@@ -167,9 +187,9 @@ _Generic(1 ? (a) : (b) \
 #  define EXPECT_STR_GE   CTEST_EXPECT_STR_GE
 #  define ASSERT_STR_EQ   CTEST_ASSERT_STR_EQ
 #  define EXPECT_STR_EQ   CTEST_EXPECT_STR_EQ
-#  define FAIL        CTEST_FAIL
-#  define SKIP        CTEST_SKIP
-#  define TEST        CTEST_TEST
+#  define FAIL            CTEST_FAIL
+#  define SKIP            CTEST_SKIP
+#  define TEST            CTEST_TEST
 #endif
 
 #endif // CTEST_H
@@ -467,6 +487,7 @@ static ctest * ctest_shuffle_run_list(ctest * run_head) {
     if (!run_head || !run_head->_run_next)
         return run_head;
 
+    // split odd ane even nodes to separate lists
     ctest * list0 = 0;
     ctest * list1 = 0;
     int id = 0;
@@ -483,6 +504,7 @@ static ctest * ctest_shuffle_run_list(ctest * run_head) {
         }
     }
 
+    // shuffle lists recursively
     list0 = ctest_shuffle_run_list(list0);
     list1 = ctest_shuffle_run_list(list1);
 
