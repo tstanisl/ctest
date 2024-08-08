@@ -182,6 +182,7 @@ _Generic(1 ? (a) : (b) \
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <time.h>
 
 #define CTEST__CMP_XMACRO(X) \
     X(EQ, ==) \
@@ -351,6 +352,7 @@ struct ctest_config {
     int repeat;
     int also_run_disabled_tests;
     int show_help;
+    int shuffle;
     int is_correct;
     char * filter;
 };
@@ -375,6 +377,8 @@ static struct ctest_config ctest_get_config(int argc, char ** argv) {
         } else if (strncmp(argv[i], "--ctest_repeat=", 15) == 0) {
             if (ctest_parse_int(argv[i] + 15, &cfg.repeat) != 0)
                 return cfg;
+        } else if (strcmp(argv[i], "--ctest_shuffle") == 0) {
+            cfg.shuffle = 1;
         } else if (strcmp(argv[i], "--ctest_filter") == 0) {
             cfg.filter = argv[i + 1];
         } else if (strncmp(argv[i], "--ctest_filter=", 15) == 0) {
@@ -392,12 +396,15 @@ static struct ctest_config ctest_get_config(int argc, char ** argv) {
 
 void ctest_show_help(void) {
     fprintf(stderr,
-            "This program contains tests created using CTest framework. "
-            "The behavior can be controlled with following options:"
-            "\n\n"
-            "--ctest_list_tests\n\tLists all tests.\n"
-            "--ctest_repeat=INTEGER\n\tRepeat tests given times.\n"
-            "--ctest_also_run_disabled_tests\n\tRun disabled tests.\n");
+        "This program contains tests created using CTest framework. "
+        "The behavior can be controlled with following options:"
+        "\n\n"
+        "--ctest_also_run_disabled_tests\n\tRun disabled tests.\n"
+        "--ctest_filter=PATTERN\n\tUse filter to select tests.\n"
+        "--ctest_list_tests\n\tLists all tests.\n"
+        "--ctest_repeat=INTEGER\n\tRepeat tests given times.\n"
+        "--ctest_shuffle\n\tShuffle tests at each iteration.\n"
+    );
 }
 
 int ctest_match(const char * str, const char * rex) {
@@ -455,6 +462,60 @@ static ctest * ctest_select_tests(struct ctest_config cfg) {
     return run_head;
 }
 
+static ctest * ctest_shuffle_run_list(ctest * run_head) {
+    // empty or singular list need no shuffling
+    if (!run_head || !run_head->_run_next)
+        return run_head;
+
+    ctest * list0 = 0;
+    ctest * list1 = 0;
+    int id = 0;
+    for (ctest * node = run_head, *next; node; node = next) {
+        next = node->_run_next;
+        if (id == 0) {
+            node->_run_next = list0;
+            list0 = node;
+            id = 1;
+        } else {
+            node->_run_next = list1;
+            list1 = node;
+            id = 0;
+        }
+    }
+
+    list0 = ctest_shuffle_run_list(list0);
+    list1 = ctest_shuffle_run_list(list1);
+
+    // merge lists
+    ctest * head = 0;
+    while (list0 || list1) {
+        int id = rand() % 2;
+        printf("id=%d list0=%p list1=%p\n", id, list0, list1);
+        //if ((id == 1 && !list1) || id == 0) {
+        if ((id == 0 && list0) || !list1) {
+            assert(list0);
+            struct ctest * next = list0->_run_next;
+            list0->_run_next = head;
+            head = list0;
+            list0 = next;
+            continue;
+        }
+        if ((id == 1 && list1) || !list0) {
+        //if ((id == 0 && !list0) || id == 1) {
+            assert(list1);
+            struct ctest * next = list1->_run_next;
+            list1->_run_next = head;
+            head = list1;
+            list1 = next;
+            continue;
+        }
+    }
+
+    puts("done");
+
+    return head;
+}
+
 static int ctest_run_tests(struct ctest_config cfg, ctest * run_head) {
     for (int i = 0; i < CTEST_STATUS_COUNT_; ++i) {
         ctest_result[i].count = 0;
@@ -500,7 +561,14 @@ int ctest_main(int argc, char *argv[]) {
 
     ctest * run_head = ctest_select_tests(cfg);
 
+    if (cfg.shuffle) {
+        srand(time(0));
+    }
+
     if (cfg.list_tests) {
+        for (ctest * node = run_head; node; node = node->_run_next)
+            fprintf(stdout, "%s\n", node->name);
+        run_head = ctest_shuffle_run_list(run_head);
         for (ctest * node = run_head; node; node = node->_run_next)
             fprintf(stdout, "%s\n", node->name);
         return EXIT_SUCCESS;
