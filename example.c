@@ -1,12 +1,3 @@
-CTEST is a small, header only library for writing tests in plain C.
-The framework deliver functionality similar to GoogleTest.
-
-C11 compatible compiler is required for handling generic selection.
-
-Example
-
-```c
-
 #define CTEST_IMPLEMENTATION
 #include "ctest.h"
 
@@ -26,4 +17,3 @@ TEST(Fibonacci, Basic) {
 }
 
 CTEST_MAIN()
-```
