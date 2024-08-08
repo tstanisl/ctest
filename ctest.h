@@ -13,6 +13,7 @@ typedef struct ctest {
     void (*run)(struct ctest *);
     struct ctest * _all_next;
     struct ctest * _res_next;
+    struct ctest * _run_next;
 } ctest;
 
 void ctest_register(ctest *);
@@ -301,6 +302,8 @@ static ctest * ctest_head;
 static ctest ** ctest_tail_p = &ctest_head;
 
 void ctest_register(ctest * test) {
+    test->_run_next = 0;
+    test->_res_next = 0;
     *ctest_tail_p = test;
     ctest_tail_p = &test->_all_next;
 }
@@ -353,7 +356,7 @@ struct ctest_config {
 };
 
 static int ctest_parse_int(const char * str, int * dst) {
-    return sscanf(str, "%d%c", dst, (char[1]){0}) == 1;
+    return sscanf(str, "%d%c", dst, (char[1]){0}) != 1;
 }
 
 static struct ctest_config ctest_get_config(int argc, char ** argv) {
@@ -439,21 +442,20 @@ int ctest_match(const char * str, const char * rex) {
     return 0;
 }
 
-int ctest_main(int argc, char *argv[]) {
-    struct ctest_config cfg = ctest_get_config(argc, argv);
+static ctest * ctest_select_tests(struct ctest_config cfg) {
+    ctest * run_head;
+    ctest ** run_tail_p = &run_head;
 
-    if (!cfg.is_correct || cfg.show_help) {
-        ctest_show_help();
-        return EXIT_FAILURE;
-    }
+    for (ctest * node = ctest_head; node; node = node->_all_next)
+        if (!cfg.filter || ctest_match(node->name, cfg.filter)) {
+            *run_tail_p = node;
+            run_tail_p = &node->_run_next;
+        }
 
-    if (cfg.list_tests) {
-        for (ctest * node = ctest_head; node; node = node->_all_next)
-            if (!cfg.filter || ctest_match(node->name, cfg.filter))
-                fprintf(stdout, "%s\n", node->name);
-        return EXIT_SUCCESS;
-    }
+    return run_head;
+}
 
+static int ctest_run_tests(struct ctest_config cfg, ctest * run_head) {
     for (int i = 0; i < CTEST_STATUS_COUNT_; ++i) {
         ctest_result[i].count = 0;
         ctest_result[i].head  = 0;
@@ -461,13 +463,11 @@ int ctest_main(int argc, char *argv[]) {
     }
 
     int disabled_cnt = 0;
-    for (ctest * node = ctest_head; node; node = node->_all_next)
-        if (!cfg.filter || ctest_match(node->name, cfg.filter)) {
-            if (ctest_is_disabled(node) && !cfg.also_run_disabled_tests)
-                ++disabled_cnt;
-            else
-                ctest_run(node);
-        }
+    for (ctest * node = run_head; node; node = node->_run_next)
+        if (!ctest_is_disabled(node) || cfg.also_run_disabled_tests)
+            ctest_run(node);
+        else
+            ++disabled_cnt;
 
     fprintf(stderr, "\n=== SUMMARY ===\n\n");
     ctest_list_results(CTEST_SUCCESS, 0);
@@ -485,6 +485,32 @@ int ctest_main(int argc, char *argv[]) {
         fprintf(stderr, "    %s%d test%s DISABLED.\n%s", CTEST_COLOR_YELLOW,
                 disabled_cnt, disabled_cnt == 1 ? " is" : "s are",
                 CTEST_COLOR_DEFAULT);
+    }
+
+    return failure_cnt;
+}
+
+int ctest_main(int argc, char *argv[]) {
+    struct ctest_config cfg = ctest_get_config(argc, argv);
+
+    if (!cfg.is_correct || cfg.show_help) {
+        ctest_show_help();
+        return EXIT_FAILURE;
+    }
+
+    ctest * run_head = ctest_select_tests(cfg);
+
+    if (cfg.list_tests) {
+        for (ctest * node = run_head; node; node = node->_run_next)
+            fprintf(stdout, "%s\n", node->name);
+        return EXIT_SUCCESS;
+    }
+
+    int failure_cnt = ctest_run_tests(cfg, run_head);
+
+    for (int rep = 1; rep <= cfg.repeat; ++rep) {
+        fprintf(stderr, "\nRepeating test, iteration %d ...\n\n", rep);
+        failure_cnt += ctest_run_tests(cfg, run_head);
     }
 
     return failure_cnt == 0 ? EXIT_SUCCESS : EXIT_FAILURE;
