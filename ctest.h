@@ -490,6 +490,8 @@ static ctest * ctest_shuffle_run_list(ctest * run_head) {
     // split odd ane even nodes to separate lists
     ctest * list0 = 0;
     ctest * list1 = 0;
+    int list0_cnt = 0;
+    int list1_cnt = 0;
     int id = 0;
     for (ctest * node = run_head, *next; node; node = next) {
         next = node->_run_next;
@@ -497,10 +499,12 @@ static ctest * ctest_shuffle_run_list(ctest * run_head) {
             node->_run_next = list0;
             list0 = node;
             id = 1;
+            ++list0_cnt;
         } else {
             node->_run_next = list1;
             list1 = node;
             id = 0;
+            ++list1_cnt;
         }
     }
 
@@ -510,23 +514,22 @@ static ctest * ctest_shuffle_run_list(ctest * run_head) {
 
     // merge lists
     ctest * head = 0;
-    while (list0 || list1) {
-        int id = rand() % 2;
-        if ((id == 0 && list0) || !list1) {
+    while (list0_cnt + list1_cnt > 0) {
+        int id = rand() % (list0_cnt + list1_cnt);
+        if (id < list0_cnt) {
             assert(list0);
             struct ctest * next = list0->_run_next;
             list0->_run_next = head;
             head = list0;
             list0 = next;
-            continue;
-        }
-        if ((id == 1 && list1) || !list0) {
+            --list0_cnt;
+        } else {
             assert(list1);
             struct ctest * next = list1->_run_next;
             list1->_run_next = head;
             head = list1;
             list1 = next;
-            continue;
+            --list1_cnt;
         }
     }
 
