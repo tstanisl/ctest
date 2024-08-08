@@ -402,13 +402,10 @@ int ctest_match(const char * str, const char * rex) {
     int slen = strlen(str);
 
     _Bool data[4096], *match = data + 1;
-    memset(data, 0, rlen + 1);
+    if (rlen + 1 > (int)sizeof data)
+        return 0; // too long
 
-    printf("\nstr=%s res=%s\n", str, rex);
-    putchar(' ');
-    for (int rpos = -1; rpos < rlen; ++rpos)
-        putchar(rpos < 0 ? '.' : rex[rpos]);
-    puts("");
+    memset(data, 0, rlen + 1);
 
     for (int spos = -1; spos < slen; ++spos) {
         _Bool prev = (spos == -1);
@@ -433,11 +430,6 @@ int ctest_match(const char * str, const char * rex) {
             prev = curr;
         }
         match[rlen - 1] = prev;
-        putchar(spos < 0 ? '.' : str[spos]);
-        putchar(spos < 0 ? '+' : '.');
-        for (int rpos =  0; rpos < rlen; ++rpos)
-            putchar(match[rpos] ? '+' : '.');
-        puts("");
     }
 
     for (int rpos =  0; rpos <= rlen; ++rpos)
@@ -470,10 +462,12 @@ int ctest_main(int argc, char *argv[]) {
 
     int disabled_cnt = 0;
     for (ctest * node = ctest_head; node; node = node->_all_next)
-        if (ctest_is_disabled(node) && !cfg.also_run_disabled_tests)
-            ++disabled_cnt;
-        else
-            ctest_run(node);
+        if (!cfg.filter || ctest_match(node->name, cfg.filter)) {
+            if (ctest_is_disabled(node) && !cfg.also_run_disabled_tests)
+                ++disabled_cnt;
+            else
+                ctest_run(node);
+        }
 
     fprintf(stderr, "\n=== SUMMARY ===\n\n");
     ctest_list_results(CTEST_SUCCESS, 0);
