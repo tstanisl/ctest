@@ -223,8 +223,8 @@ void FNAME(                                       \
     fprintf(stderr, "%s:%d: Failure\n", fpath, lineno); \
     fprintf(stderr, "Expected: %s %s %s, got\n",  \
         a_str, ctest__cmp_to_str(cmp), b_str);    \
-    fprintf(stderr, "  lhs=" FMT "\n", a);        \
-    fprintf(stderr, "  rhs=" FMT "\n", b);        \
+    fprintf(stderr, "  lhs = " FMT "\n", a);      \
+    fprintf(stderr, "  rhs = " FMT "\n", b);      \
     fprintf(stderr, "\n");                        \
     if (drop_on_failure) ctest_drop_test();       \
     else                 ctest_fail_test();       \
