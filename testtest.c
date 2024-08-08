@@ -33,6 +33,14 @@ TEST(Fibonacci, Fail2) {
 	FAIL();
 }
 
+TEST(Fibonacci, DISABLED_Fail3) {
+	FAIL();
+}
+
+TEST(Fibonacci, DISABLED_Fail4) {
+	FAIL();
+}
+
 TEST(Types, Basic) {
 	char txt[] = "hello";
 	EXPECT_STR_EQ("hello", txt);

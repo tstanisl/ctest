@@ -338,6 +338,10 @@ static void ctest_list_results(enum ctest_status status, _Bool list) {
     fprintf(stderr, CTEST_COLOR_DEFAULT);
 }
 
+static int ctest_is_disabled(struct ctest * t) {
+    return strstr(t->name, ".DISABLED_") != 0;
+}
+
 int ctest_main(int argc, char *argv[]) {
     (void)argc;
     (void)argv;
@@ -348,8 +352,12 @@ int ctest_main(int argc, char *argv[]) {
         ctest_result[i].phead = &ctest_result[i].head;
     }
 
+    int disabled_cnt = 0;
     for (ctest * node = ctest_head; node; node = node->_all_next)
-        ctest_run(node);
+        if (ctest_is_disabled(node))
+            ++disabled_cnt;
+        else
+            ctest_run(node);
 
     fprintf(stderr, "\n=== SUMMARY ===\n\n");
     ctest_list_results(CTEST_SUCCESS, 0);
@@ -359,11 +367,17 @@ int ctest_main(int argc, char *argv[]) {
     int failure_cnt = ctest_result[CTEST_FAILURE].count;
     if (failure_cnt == 0) {
         fprintf(stderr, "\nAll tests passed.\n");
-        return EXIT_SUCCESS;
     } else {
         fprintf(stderr, "\n%d tests FAILED.\n", failure_cnt);
-        return EXIT_FAILURE;
     }
+
+    if (disabled_cnt > 0) {
+        fprintf(stderr, "    %s%d test%s DISABLED.\n%s", CTEST_COLOR_YELLOW,
+                disabled_cnt, disabled_cnt == 1 ? " is" : "s are",
+                CTEST_COLOR_DEFAULT);
+    }
+
+    return failure_cnt == 0 ? EXIT_SUCCESS : EXIT_FAILURE;
 }
 
 #undef CTEST_IMPLEMENTATION
