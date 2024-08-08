@@ -17,6 +17,7 @@ typedef struct ctest {
 
 void ctest_register(ctest *);
 
+// FIXME: unused
 #define ctest_entry(ptr, type, member) \
     (type*)((char*)(1 ? ptr : ((type*)0)->member) + offsetof(type, member))
 
@@ -348,6 +349,7 @@ struct ctest_config {
     int also_run_disabled_tests;
     int show_help;
     int is_correct;
+    char * filter;
 };
 
 static int ctest_parse_int(const char * str, int * dst) {
@@ -370,6 +372,10 @@ static struct ctest_config ctest_get_config(int argc, char ** argv) {
         } else if (strncmp(argv[i], "--ctest_repeat=", 15) == 0) {
             if (ctest_parse_int(argv[i] + 15, &cfg.repeat) != 0)
                 return cfg;
+        } else if (strcmp(argv[i], "--ctest_filter") == 0) {
+            cfg.filter = argv[i + 1];
+        } else if (strncmp(argv[i], "--ctest_filter=", 15) == 0) {
+            cfg.filter = argv[i] + 15;
         } else if (strncmp(argv[i], "--ctest_", 7) == 0) {
             // unknown option
             return cfg;
@@ -391,6 +397,56 @@ void ctest_show_help(void) {
             "--ctest_also_run_disabled_tests\n\tRun disabled tests.\n");
 }
 
+int ctest_match(const char * str, const char * rex) {
+    int rlen = strlen(rex);
+    int slen = strlen(str);
+
+    _Bool data[4096], *match = data + 1;
+    memset(data, 0, rlen + 1);
+
+    printf("\nstr=%s res=%s\n", str, rex);
+    putchar(' ');
+    for (int rpos = -1; rpos < rlen; ++rpos)
+        putchar(rpos < 0 ? '.' : rex[rpos]);
+    puts("");
+
+    for (int spos = -1; spos < slen; ++spos) {
+        _Bool prev = (spos == -1);
+        for (int rpos =  0; rpos < rlen; ++rpos) {
+            int s = (spos < 0 ? 0 : str[spos]);
+            int r = rex[rpos];
+
+            _Bool curr;
+
+            if      (r == ':')
+                curr = (s == 0);
+            else if (r == '*')
+                curr = prev || match[rpos];
+            else if (r == '?')
+                curr = match[rpos - 1];
+            else if (r == '\"' || r == '"')
+                curr = prev;
+            else
+                curr = match[rpos - 1] && (r == s);
+
+            match[rpos - 1] = prev;
+            prev = curr;
+        }
+        match[rlen - 1] = prev;
+        putchar(spos < 0 ? '.' : str[spos]);
+        putchar(spos < 0 ? '+' : '.');
+        for (int rpos =  0; rpos < rlen; ++rpos)
+            putchar(match[rpos] ? '+' : '.');
+        puts("");
+    }
+
+    for (int rpos =  0; rpos <= rlen; ++rpos)
+        if ((rex[rpos] == ':' || rex[rpos] == 0) && match[rpos - 1])
+            return 1;
+
+    return 0;
+}
+
 int ctest_main(int argc, char *argv[]) {
     struct ctest_config cfg = ctest_get_config(argc, argv);
 
@@ -401,7 +457,8 @@ int ctest_main(int argc, char *argv[]) {
 
     if (cfg.list_tests) {
         for (ctest * node = ctest_head; node; node = node->_all_next)
-            fprintf(stdout, "%s\n", node->name);
+            if (!cfg.filter || ctest_match(node->name, cfg.filter))
+                fprintf(stdout, "%s\n", node->name);
         return EXIT_SUCCESS;
     }
 

@@ -18,6 +18,7 @@ TEST(Fibonacci, Basic) {
 	ASSERT_EQ(fib(6), 8);
 }
 
+
 TEST(Fibonacci, Fail) {
 	EXPECT_EQ(1+1,1);
 	EXPECT_EQ(1+1,2);
