@@ -342,9 +342,68 @@ static int ctest_is_disabled(struct ctest * t) {
     return strstr(t->name, ".DISABLED_") != 0;
 }
 
+struct ctest_config {
+    int list_tests;
+    int repeat;
+    int also_run_disabled_tests;
+    int show_help;
+    int is_correct;
+};
+
+static int ctest_parse_int(const char * str, int * dst) {
+    return sscanf(str, "%d%c", dst, (char[1]){0}) == 1;
+}
+
+static struct ctest_config ctest_get_config(int argc, char ** argv) {
+    struct ctest_config cfg = { 0 };
+
+    for (int i = 1; i < argc; ++i) {
+        if (strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0) {
+            cfg.show_help = 1;
+        } else if (strcmp(argv[i], "--ctest_list_tests") == 0) {
+            cfg.list_tests = 1;
+        } else if (strcmp(argv[i], "--ctest_also_run_disabled_tests") == 0) {
+            cfg.also_run_disabled_tests = 1;
+        } else if (strcmp(argv[i], "--ctest_repeat") == 0) {
+            if (ctest_parse_int(argv[i + 1], &cfg.repeat) != 0)
+                return cfg;
+        } else if (strncmp(argv[i], "--ctest_repeat=", 15) == 0) {
+            if (ctest_parse_int(argv[i] + 15, &cfg.repeat) != 0)
+                return cfg;
+        } else if (strncmp(argv[i], "--ctest_", 7) == 0) {
+            // unknown option
+            return cfg;
+        }
+    }
+
+    cfg.is_correct = 1;
+
+    return cfg;
+}
+
+void ctest_show_help(void) {
+    fprintf(stderr,
+            "This program contains tests created using CTest framework. "
+            "The behavior can be controlled with following options:"
+            "\n\n"
+            "--ctest_list_tests\n\tLists all tests.\n"
+            "--ctest_repeat=INTEGER\n\tRepeat tests given times.\n"
+            "--ctest_also_run_disabled_tests\n\tRun disabled tests.\n");
+}
+
 int ctest_main(int argc, char *argv[]) {
-    (void)argc;
-    (void)argv;
+    struct ctest_config cfg = ctest_get_config(argc, argv);
+
+    if (!cfg.is_correct || cfg.show_help) {
+        ctest_show_help();
+        return EXIT_FAILURE;
+    }
+
+    if (cfg.list_tests) {
+        for (ctest * node = ctest_head; node; node = node->_all_next)
+            fprintf(stdout, "%s\n", node->name);
+        return EXIT_SUCCESS;
+    }
 
     for (int i = 0; i < CTEST_STATUS_COUNT_; ++i) {
         ctest_result[i].count = 0;
@@ -354,7 +413,7 @@ int ctest_main(int argc, char *argv[]) {
 
     int disabled_cnt = 0;
     for (ctest * node = ctest_head; node; node = node->_all_next)
-        if (ctest_is_disabled(node))
+        if (ctest_is_disabled(node) && !cfg.also_run_disabled_tests)
             ++disabled_cnt;
         else
             ctest_run(node);
