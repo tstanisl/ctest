@@ -31,6 +31,7 @@ void ctest_drop_test(void);
 void ctest_skip_test(void);
 int ctest_failed(void);
 int ctest_main(int argc, char * argv[]);
+void ctest_log(const char * fmt, ...) __attribute__ ((format (printf, 1, 2)));
 
 typedef struct ctest {
     const char * name;
@@ -77,6 +78,7 @@ void ctest_register(ctest *);
 int main(int argc, char *argv[]) { \
     return ctest_main(argc, argv); \
 }
+#define CTEST_LOG(...) ctest_log(__VA_ARGS__)
 
 enum ctest__cmp {
     CTEST__CMP_EQ,
@@ -190,6 +192,7 @@ _Generic(1 ? (a) : (b)                        \
 #  define FAIL            CTEST_FAIL
 #  define SKIP            CTEST_SKIP
 #  define TEST            CTEST_TEST
+#  define LOG             CTEST_LOG
 #endif
 
 #endif // CTEST_H
@@ -199,6 +202,7 @@ _Generic(1 ? (a) : (b)                        \
 
 #include <assert.h>
 #include <setjmp.h>
+#include <stdarg.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -310,6 +314,13 @@ void ctest_skip_test(void) {
 
 int ctest_failed(void) {
     return ctest_status == CTEST_FAILURE;
+}
+
+void ctest_log(const char * fmt, ...) {
+    va_list ap;
+    va_start(ap, fmt);
+    (void)vfprintf(stderr, fmt, ap);
+    va_end(ap);
 }
 
 static const char *ctest_status_string[] = {
