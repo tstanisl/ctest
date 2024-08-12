@@ -100,6 +100,7 @@ void ctest__cmp_str(const char *, int, const char *, const char *,
 void ctest__cmp_ptr(const char *, int, const volatile void *, const char *,
                        enum ctest__cmp, const volatile void *, const char *, _Bool);
 void ctest__check_bool(const char *, int, _Bool, const char *, _Bool, _Bool);
+void ctest__check_near(const char *, int, double, const char *, double, const char *, double, _Bool);
 
 #define CTEST_ASSERT_TRUE(pred) \
     ctest__check_bool(__FILE__, __LINE__, (pred), #pred, 1, 1)
@@ -158,6 +159,11 @@ _Generic(1 ? (a) : (b)                        \
 #define CTEST_EXPECT_STR_GE(a, b) CTEST__STR_CMP(a, GE, b, 0)
 #define CTEST_ASSERT_STR_GE(a, b) CTEST__STR_CMP(a, GE, b, 1)
 
+#define CTEST__NEAR(a, b, absdiff, drop_on_fail) \
+    ctest__check_near(__FILE__, __LINE__, a, #a, b, #b, absdiff, drop_on_fail)
+#define CTEST_EXPECT_NEAR(a, b, absdiff) CTEST__NEAR(a, b, absdiff, 0)
+#define CTEST_ASSERT_NEAR(a, b, absdiff) CTEST__NEAR(a, b, absdiff, 1)
+
 #ifndef CTEST_NO_SHORT_NAMES
 #  define ASSERT_TRUE     CTEST_ASSERT_TRUE
 #  define EXPECT_TRUE     CTEST_EXPECT_TRUE
@@ -189,6 +195,8 @@ _Generic(1 ? (a) : (b)                        \
 #  define EXPECT_STR_GE   CTEST_EXPECT_STR_GE
 #  define ASSERT_STR_EQ   CTEST_ASSERT_STR_EQ
 #  define EXPECT_STR_EQ   CTEST_EXPECT_STR_EQ
+#  define ASSERT_NEAR     CTEST_ASSERT_NEAR
+#  define EXPECT_NEAR     CTEST_EXPECT_NEAR
 #  define FAIL            CTEST_FAIL
 #  define SKIP            CTEST_SKIP
 #  define TEST            CTEST_TEST
@@ -233,6 +241,25 @@ void ctest__check_bool(
     fprintf(stderr, "%s:%d: Failure\n", fpath, lineno);
     fprintf(stderr, "Expected: (%s) to be %s\n",
         a_str, b ? "true" : "false");
+
+    if (drop_on_failure) ctest_drop_test();
+    else                 ctest_fail_test();
+}
+
+void ctest__check_near(
+    const char *fpath, int lineno,
+    double a, const char * a_str,
+    double b, const char * b_str,
+    double absdiff,
+    _Bool drop_on_failure
+) {
+    double diff = a > b ? a - b : b - a;
+    if (diff <= absdiff) return;
+    fprintf(stderr, "%s:%d: Failure\n", fpath, lineno);
+    fprintf(stderr, "The difference between %s and %s is %g"
+                    ", which exceeds %g\n", a_str, b_str, diff, absdiff);
+    fprintf(stderr, "  %s evaluates to %.15lf.\n", a_str, a);
+    fprintf(stderr, "  %s evaluates to %.15lf.\n", b_str, b);
 
     if (drop_on_failure) ctest_drop_test();
     else                 ctest_fail_test();
