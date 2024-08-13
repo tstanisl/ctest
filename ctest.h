@@ -527,49 +527,31 @@ static ctest * ctest_shuffle_run_list(ctest * run_head) {
         return run_head;
 
     // split odd ane even nodes to separate lists
-    ctest * list0 = 0;
-    ctest * list1 = 0;
-    int list0_cnt = 0;
-    int list1_cnt = 0;
+    ctest * list[2] = {0, 0};
+    int list_cnt[2] = {0, 0};
     int id = 0;
     for (ctest * node = run_head, *next; node; node = next) {
         next = node->_run_next;
-        if (id == 0) {
-            node->_run_next = list0;
-            list0 = node;
-            id = 1;
-            ++list0_cnt;
-        } else {
-            node->_run_next = list1;
-            list1 = node;
-            id = 0;
-            ++list1_cnt;
-        }
+        node->_run_next = list[id];
+        list[id] = node;
+        ++list_cnt[id];
+        id = 1 - id;
     }
 
     // shuffle lists recursively
-    list0 = ctest_shuffle_run_list(list0);
-    list1 = ctest_shuffle_run_list(list1);
+    list[0] = ctest_shuffle_run_list(list[0]);
+    list[1] = ctest_shuffle_run_list(list[1]);
 
     // merge lists
     ctest * head = 0;
-    while (list0_cnt + list1_cnt > 0) {
-        int id = rand() % (list0_cnt + list1_cnt);
-        if (id < list0_cnt) {
-            assert(list0);
-            struct ctest * next = list0->_run_next;
-            list0->_run_next = head;
-            head = list0;
-            list0 = next;
-            --list0_cnt;
-        } else {
-            assert(list1);
-            struct ctest * next = list1->_run_next;
-            list1->_run_next = head;
-            head = list1;
-            list1 = next;
-            --list1_cnt;
-        }
+    while (list_cnt[0] + list_cnt[1] > 0) {
+        int id = (rand() % (list_cnt[0] + list_cnt[1]) >= list_cnt[0]);
+        assert(list[id]);
+        struct ctest * next = list[id]->_run_next;
+        list[id]->_run_next = head;
+        head = list[id];
+        list[id] = next;
+        --list_cnt[id];
     }
 
     return head;
