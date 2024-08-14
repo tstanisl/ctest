@@ -33,12 +33,19 @@ int ctest_failed(void);
 int ctest_main(int argc, char * argv[]);
 void ctest_log(const char * fmt, ...) __attribute__ ((format (printf, 1, 2)));
 
+enum ctest_status {
+    CTEST_UNKNOWN, // must be first
+    CTEST_RUNNING,
+    CTEST_SUCCESS,
+    CTEST_SKIPPED,
+    CTEST_FAILURE,
+};
+
 typedef struct ctest {
     const char * name;
     void (*run)(struct ctest *);
-    struct ctest * _all_next;
-    struct ctest * _res_next;
-    struct ctest * _run_next;
+    struct ctest * _next;
+    enum ctest_status _status;
 } ctest;
 
 void ctest_register(ctest *);
@@ -295,29 +302,8 @@ CTEST__CMP_FUNC_IMPL(ctest__cmp_str, const char *, "\"%s\"", X)
 #undef X
 
 
-enum ctest_status {
-    CTEST_RUNNING,
-    CTEST_SUCCESS,
-    CTEST_SKIPPED,
-    CTEST_FAILURE,
-    CTEST_STATUS_COUNT_,
-};
-
 static volatile enum ctest_status ctest_status;
 static jmp_buf ctest_longjmp_env;
-
-struct ctest_result {
-    int count;
-    ctest * head;
-    ctest ** phead;
-};
-
-static struct ctest_result ctest_result[CTEST_STATUS_COUNT_];
-
-#define CTEST_COLOR_RED     "\033[0;31m"
-#define CTEST_COLOR_GREEN   "\033[0;32m"
-#define CTEST_COLOR_YELLOW  "\033[0;33m"
-#define CTEST_COLOR_DEFAULT "\033[0m"
 
 void ctest_drop_test(void) {
     ctest_status = CTEST_FAILURE;
@@ -350,6 +336,11 @@ void ctest_log(const char * fmt, ...) {
     va_end(ap);
 }
 
+#define CTEST_COLOR_RED     "\033[0;31m"
+#define CTEST_COLOR_GREEN   "\033[0;32m"
+#define CTEST_COLOR_YELLOW  "\033[0;33m"
+#define CTEST_COLOR_DEFAULT "\033[0m"
+
 static const char *ctest_status_string[] = {
     [CTEST_RUNNING] = CTEST_COLOR_GREEN  "[ RUNNING    ]" CTEST_COLOR_DEFAULT,
     [CTEST_SKIPPED] = CTEST_COLOR_YELLOW "[    SKIPPED ]" CTEST_COLOR_DEFAULT,
@@ -361,15 +352,16 @@ static ctest * ctest_head;
 static ctest ** ctest_tail_p = &ctest_head;
 
 void ctest_register(ctest * test) {
-    test->_run_next = 0;
-    test->_res_next = 0;
-    test->_all_next = 0;
+    assert(ctest_tail_p && "cannot ctest_register after running tests");
+    test->_next = 0;
     *ctest_tail_p = test;
-    ctest_tail_p = &test->_all_next;
+    ctest_tail_p = &test->_next;
 }
 
-static void ctest_run(ctest * t) {
+#define CTEST_FOR_EACH(n) \
+    for (ctest * n = ctest_head; n; n = n->_next)
 
+static void ctest_run(ctest * t) {
     ctest_status = CTEST_RUNNING;
     fprintf(stderr, "%s: %s\n", ctest_status_string[ctest_status], t->name);
 
@@ -379,27 +371,27 @@ static void ctest_run(ctest * t) {
     if (ctest_status == CTEST_RUNNING)
         ctest_status = CTEST_SUCCESS;
 
-    struct ctest_result * r = &ctest_result[ctest_status];
-    r->count++;
-    t->_res_next = 0;
-    *r->phead = t;
-    r->phead = &t->_res_next;
-
+    t->_status = ctest_status;
     fprintf(stderr, "%s: %s\n", ctest_status_string[ctest_status], t->name);
 }
 
 static void ctest_list_results(enum ctest_status status, _Bool list) {
-    struct ctest_result * res = &ctest_result[status];
-    if (res->count == 0)
+    size_t count = 0;
+    CTEST_FOR_EACH(node)
+        if (node->_status == status)
+            ++count;
+
+    if (count == 0)
         return;
 
     const char * status_str = ctest_status_string[status];
-    fprintf(stderr, "%s %d tests.\n", status_str, res->count);
+    fprintf(stderr, "%s %zu tests.\n", status_str, count);
+
     if (list) {
-        for (ctest * node = res->head; node; node = node->_res_next)
-            fprintf(stderr, "%s %s\n", status_str, node->name);
+        CTEST_FOR_EACH(node)
+            if (node->_status == status)
+                fprintf(stderr, "%s %s\n", status_str, node->name);
     }
-    fprintf(stderr, CTEST_COLOR_DEFAULT);
 }
 
 static int ctest_is_disabled(struct ctest * t) {
@@ -508,31 +500,28 @@ static int ctest_match(const char * str, const char * rex) {
     return 0;
 }
 
-static ctest * ctest_select_tests(struct ctest_config cfg) {
-    ctest * run_head = 0;
-    ctest ** run_tail_p = &run_head;
-
-    for (ctest * node = ctest_head; node; node = node->_all_next)
+static void ctest_select_tests(struct ctest_config cfg) {
+    ctest ** prev = &ctest_head;
+    CTEST_FOR_EACH(node)
         if (!cfg.filter || ctest_match(node->name, cfg.filter)) {
-            *run_tail_p = node;
-            run_tail_p = &node->_run_next;
+            *prev = node;
+            prev = &node->_next;
         }
-
-    return run_head;
+    *prev = 0;
 }
 
-static ctest * ctest_shuffle_run_list(ctest * run_head) {
+static ctest * ctest_shuffle_run_list(ctest * head) {
     // empty or singular list need no shuffling
-    if (!run_head || !run_head->_run_next)
-        return run_head;
+    if (!head || !head->_next)
+        return head;
 
     // split odd ane even nodes to separate lists
     ctest * list[2] = {0, 0};
     int list_cnt[2] = {0, 0};
     int id = 0;
-    for (ctest * node = run_head, *next; node; node = next) {
-        next = node->_run_next;
-        node->_run_next = list[id];
+    for (ctest * node = head, *next; node; node = next) {
+        next = node->_next;
+        node->_next = list[id];
         list[id] = node;
         ++list_cnt[id];
         id = 1 - id;
@@ -543,12 +532,12 @@ static ctest * ctest_shuffle_run_list(ctest * run_head) {
     list[1] = ctest_shuffle_run_list(list[1]);
 
     // merge lists
-    ctest * head = 0;
+    head = 0;
     while (list_cnt[0] + list_cnt[1] > 0) {
         int id = (rand() % (list_cnt[0] + list_cnt[1]) >= list_cnt[0]);
         assert(list[id]);
-        struct ctest * next = list[id]->_run_next;
-        list[id]->_run_next = head;
+        struct ctest * next = list[id]->_next;
+        list[id]->_next = head;
         head = list[id];
         list[id] = next;
         --list_cnt[id];
@@ -557,34 +546,31 @@ static ctest * ctest_shuffle_run_list(ctest * run_head) {
     return head;
 }
 
-static int ctest_run_tests(struct ctest_config cfg, ctest * run_head) {
-    for (int i = 0; i < CTEST_STATUS_COUNT_; ++i) {
-        ctest_result[i].count = 0;
-        ctest_result[i].head  = 0;
-        ctest_result[i].phead = &ctest_result[i].head;
-    }
+static size_t ctest_run_tests(struct ctest_config cfg) {
+    size_t disabled_cnt = 0;
+    size_t  failure_cnt = 0;
 
-    int disabled_cnt = 0;
-    for (ctest * node = run_head; node; node = node->_run_next)
-        if (!ctest_is_disabled(node) || cfg.also_run_disabled_tests)
+    CTEST_FOR_EACH(node)
+        if (!ctest_is_disabled(node) || cfg.also_run_disabled_tests) {
             ctest_run(node);
-        else
+            failure_cnt += (node->_status == CTEST_FAILURE);
+        } else {
             ++disabled_cnt;
+        }
 
     fprintf(stderr, "\n=== SUMMARY ===\n\n");
     ctest_list_results(CTEST_SUCCESS, 0);
     ctest_list_results(CTEST_SKIPPED, 1);
     ctest_list_results(CTEST_FAILURE, 1);
 
-    int failure_cnt = ctest_result[CTEST_FAILURE].count;
     if (failure_cnt == 0) {
         fprintf(stderr, "\nAll tests passed.\n");
     } else {
-        fprintf(stderr, "\n%d tests FAILED.\n", failure_cnt);
+        fprintf(stderr, "\n%zu tests FAILED.\n", failure_cnt);
     }
 
     if (disabled_cnt > 0) {
-        fprintf(stderr, "    %s%d test%s DISABLED.\n%s", CTEST_COLOR_YELLOW,
+        fprintf(stderr, "    %s%zu test%s DISABLED.\n%s", CTEST_COLOR_YELLOW,
                 disabled_cnt, disabled_cnt == 1 ? " is" : "s are",
                 CTEST_COLOR_DEFAULT);
     }
@@ -594,30 +580,31 @@ static int ctest_run_tests(struct ctest_config cfg, ctest * run_head) {
 
 int ctest_main(int argc, char *argv[]) {
     struct ctest_config cfg = ctest_get_config(argc, argv);
+    ctest_tail_p = 0; // freeze tests
 
     if (!cfg.is_correct || cfg.show_help) {
         ctest_show_help();
         return EXIT_FAILURE;
     }
 
-    ctest * run_head = ctest_select_tests(cfg);
+    ctest_select_tests(cfg);
 
     if (cfg.list_tests) {
-        for (ctest * node = run_head; node; node = node->_run_next)
-            fprintf(stdout, "%s\n", node->name);
+        CTEST_FOR_EACH(t)
+            fprintf(stdout, "%s\n", t->name);
         return EXIT_SUCCESS;
     }
 
     srand(time(0));
 
-    int failure_cnt = 0;
+    size_t failure_cnt = 0;
     for (int rep = 0; rep <= cfg.repeat; ++rep) {
         if (cfg.shuffle) {
-            run_head = ctest_shuffle_run_list(run_head);
+            ctest_head = ctest_shuffle_run_list(ctest_head);
         }
         if (rep > 0)
             fprintf(stderr, "\nRepeating test, iteration %d ...\n\n", rep);
-        failure_cnt += ctest_run_tests(cfg, run_head);
+        failure_cnt += ctest_run_tests(cfg);
     }
 
     return failure_cnt == 0 ? EXIT_SUCCESS : EXIT_FAILURE;
