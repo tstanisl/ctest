@@ -26,8 +26,7 @@ SOFTWARE.
 #define CTEST_H __FILE__
 
 void ctest_fail_test(void);
-void ctest_drop_test_loud(const char *fpath, int line);
-void ctest_drop_test(void);
+void ctest_drop_test(const char *fpath, int line);
 void ctest_skip_test(void);
 int ctest_failed(void);
 int ctest_main(int argc, char * argv[]);
@@ -79,8 +78,19 @@ void ctest_register(ctest *);
 #define CTEST_TEST(test_suite, test_case) \
     CTEST__TEST(test_suite, test_case)
 
-#define CTEST_FAIL() ctest_drop_test_loud(__FILE__, __LINE__)
+#define CTEST_FAIL() ctest_drop_test(__FILE__, __LINE__)
 #define CTEST_SKIP() ctest_skip_test()
+
+void ctest__cleanup(const int *);
+
+#define ASSERT__WRAP(...) \
+    for(int _armed __attribute__((cleanup(ctest__cleanup))) = 0; \
+        !_armed && !(__VA_ARGS__);                               \
+        _armed = 1)
+
+#define EXPECT__WRAP(...) \
+    if (__VA_ARGS__); else
+
 #define CTEST_MAIN() \
 int main(int argc, char *argv[]) { \
     return ctest_main(argc, argv); \
@@ -96,29 +106,29 @@ enum ctest__cmp {
     CTEST__CMP_GE,
 };
 
-void ctest__cmp_signed(const char *, int, long long signed, const char *,
-                       enum ctest__cmp, long long signed, const char *, _Bool);
-void ctest__cmp_unsigned(const char *, int, long long unsigned, const char *,
-                       enum ctest__cmp, long long unsigned, const char *, _Bool);
-void ctest__cmp_double(const char *, int, double, const char *,
-                       enum ctest__cmp, double, const char *, _Bool);
-void ctest__cmp_str(const char *, int, const char *, const char *,
-                       enum ctest__cmp, const char *, const char *, _Bool);
-void ctest__cmp_ptr(const char *, int, const volatile void *, const char *,
-                       enum ctest__cmp, const volatile void *, const char *, _Bool);
-void ctest__check_bool(const char *, int, _Bool, const char *, _Bool, _Bool);
-void ctest__check_near(const char *, int, double, const char *, double, const char *, double, _Bool);
+int ctest__cmp_signed(const char *, int, long long signed, const char *,
+                       enum ctest__cmp, long long signed, const char *);
+int ctest__cmp_unsigned(const char *, int, long long unsigned, const char *,
+                       enum ctest__cmp, long long unsigned, const char *);
+int ctest__cmp_double(const char *, int, double, const char *,
+                       enum ctest__cmp, double, const char *);
+int ctest__cmp_str(const char *, int, const char *, const char *,
+                       enum ctest__cmp, const char *, const char *);
+int ctest__cmp_ptr(const char *, int, const volatile void *, const char *,
+                       enum ctest__cmp, const volatile void *, const char *);
+int ctest__check_bool(const char *, int, _Bool, const char *, _Bool);
+int ctest__check_near(const char *, int, double, const char *, double, const char *, double);
 
 #define CTEST_ASSERT_TRUE(pred) \
-    ctest__check_bool(__FILE__, __LINE__, (pred), #pred, 1, 1)
+    ASSERT__WRAP(ctest__check_bool(__FILE__, __LINE__, (pred), #pred, 1))
 #define CTEST_ASSERT_FALSE(pred) \
-    ctest__check_bool(__FILE__, __LINE__, (pred), #pred, 0, 1)
+    ASSERT__WRAP(ctest__check_bool(__FILE__, __LINE__, (pred), #pred, 0))
 #define CTEST_EXPECT_TRUE(pred) \
-    ctest__check_bool(__FILE__, __LINE__, (pred), #pred, 1, 0)
+    EXPECT__WRAP(ctest__check_bool(__FILE__, __LINE__, (pred), #pred, 1))
 #define CTEST_EXPECT_FALSE(pred) \
-    ctest__check_bool(__FILE__, __LINE__, (pred), #pred, 0, 0)
+    EXPECT__WRAP(ctest__check_bool(__FILE__, __LINE__, (pred), #pred, 0))
 
-#define CTEST__CMP(a, cmp, b, drop_on_fail)   \
+#define CTEST__CMP(a, cmp, b)                 \
 _Generic(1 ? (a) : (b)                        \
     , _Bool: ctest__cmp_unsigned              \
     , char: ctest__cmp_signed                 \
@@ -135,41 +145,43 @@ _Generic(1 ? (a) : (b)                        \
     , float: ctest__cmp_double                \
     , double: ctest__cmp_double               \
     , default: ctest__cmp_ptr                 \
-)(__FILE__, __LINE__, a, #a, CTEST__CMP_ ## cmp, b, #b, drop_on_fail)
+)(__FILE__, __LINE__, a, #a, CTEST__CMP_ ## cmp, b, #b)
 
-#define CTEST_EXPECT_EQ(a, b) CTEST__CMP(a, EQ, b, 0)
-#define CTEST_ASSERT_EQ(a, b) CTEST__CMP(a, EQ, b, 1)
-#define CTEST_EXPECT_NE(a, b) CTEST__CMP(a, NE, b, 0)
-#define CTEST_ASSERT_NE(a, b) CTEST__CMP(a, NE, b, 1)
-#define CTEST_EXPECT_LT(a, b) CTEST__CMP(a, LT, b, 0)
-#define CTEST_ASSERT_LT(a, b) CTEST__CMP(a, LT, b, 1)
-#define CTEST_EXPECT_LE(a, b) CTEST__CMP(a, LE, b, 0)
-#define CTEST_ASSERT_LE(a, b) CTEST__CMP(a, LE, b, 1)
-#define CTEST_EXPECT_GT(a, b) CTEST__CMP(a, GT, b, 0)
-#define CTEST_ASSERT_GT(a, b) CTEST__CMP(a, GT, b, 1)
-#define CTEST_EXPECT_GE(a, b) CTEST__CMP(a, GE, b, 0)
-#define CTEST_ASSERT_GE(a, b) CTEST__CMP(a, GE, b, 1)
+#define CTEST_EXPECT_EQ(a, b) EXPECT__WRAP(CTEST__CMP(a, EQ, b))
+#define CTEST_ASSERT_EQ(a, b) ASSERT__WRAP(CTEST__CMP(a, EQ, b))
+#define CTEST_EXPECT_NE(a, b) EXPECT__WRAP(CTEST__CMP(a, NE, b))
+#define CTEST_ASSERT_NE(a, b) ASSERT__WRAP(CTEST__CMP(a, NE, b))
+#define CTEST_EXPECT_LT(a, b) EXPECT__WRAP(CTEST__CMP(a, LT, b))
+#define CTEST_ASSERT_LT(a, b) ASSERT__WRAP(CTEST__CMP(a, LT, b))
+#define CTEST_EXPECT_LE(a, b) EXPECT__WRAP(CTEST__CMP(a, LE, b))
+#define CTEST_ASSERT_LE(a, b) ASSERT__WRAP(CTEST__CMP(a, LE, b))
+#define CTEST_EXPECT_GT(a, b) EXPECT__WRAP(CTEST__CMP(a, GT, b))
+#define CTEST_ASSERT_GT(a, b) ASSERT__WRAP(CTEST__CMP(a, GT, b))
+#define CTEST_EXPECT_GE(a, b) EXPECT__WRAP(CTEST__CMP(a, GE, b))
+#define CTEST_ASSERT_GE(a, b) ASSERT__WRAP(CTEST__CMP(a, GE, b))
 
-#define CTEST__STR_CMP(a, cmp, b, drop_on_fail) \
-    ctest__cmp_str(__FILE__, __LINE__, a, #a, CTEST__CMP_ ## cmp, b, #b, drop_on_fail)
+#define CTEST__STR_CMP(a, cmp, b) \
+    ctest__cmp_str(__FILE__, __LINE__, a, #a, CTEST__CMP_ ## cmp, b, #b)
 
-#define CTEST_EXPECT_STR_EQ(a, b) CTEST__STR_CMP(a, EQ, b, 0)
-#define CTEST_ASSERT_STR_EQ(a, b) CTEST__STR_CMP(a, EQ, b, 1)
-#define CTEST_EXPECT_STR_NE(a, b) CTEST__STR_CMP(a, NE, b, 0)
-#define CTEST_ASSERT_STR_NE(a, b) CTEST__STR_CMP(a, NE, b, 1)
-#define CTEST_EXPECT_STR_LT(a, b) CTEST__STR_CMP(a, LT, b, 0)
-#define CTEST_ASSERT_STR_LT(a, b) CTEST__STR_CMP(a, LT, b, 1)
-#define CTEST_EXPECT_STR_LE(a, b) CTEST__STR_CMP(a, LE, b, 0)
-#define CTEST_ASSERT_STR_LE(a, b) CTEST__STR_CMP(a, LE, b, 1)
-#define CTEST_EXPECT_STR_GT(a, b) CTEST__STR_CMP(a, GT, b, 0)
-#define CTEST_ASSERT_STR_GT(a, b) CTEST__STR_CMP(a, GT, b, 1)
-#define CTEST_EXPECT_STR_GE(a, b) CTEST__STR_CMP(a, GE, b, 0)
-#define CTEST_ASSERT_STR_GE(a, b) CTEST__STR_CMP(a, GE, b, 1)
+#define CTEST_EXPECT_STR_EQ(a, b) EXPECT__WRAP(CTEST__STR_CMP(a, EQ, b))
+#define CTEST_ASSERT_STR_EQ(a, b) ASSERT__WRAP(CTEST__STR_CMP(a, EQ, b))
+#define CTEST_EXPECT_STR_NE(a, b) EXPECT__WRAP(CTEST__STR_CMP(a, NE, b))
+#define CTEST_ASSERT_STR_NE(a, b) ASSERT__WRAP(CTEST__STR_CMP(a, NE, b))
+#define CTEST_EXPECT_STR_LT(a, b) EXPECT__WRAP(CTEST__STR_CMP(a, LT, b))
+#define CTEST_ASSERT_STR_LT(a, b) ASSERT__WRAP(CTEST__STR_CMP(a, LT, b))
+#define CTEST_EXPECT_STR_LE(a, b) EXPECT__WRAP(CTEST__STR_CMP(a, LE, b))
+#define CTEST_ASSERT_STR_LE(a, b) ASSERT__WRAP(CTEST__STR_CMP(a, LE, b))
+#define CTEST_EXPECT_STR_GT(a, b) EXPECT__WRAP(CTEST__STR_CMP(a, GT, b))
+#define CTEST_ASSERT_STR_GT(a, b) ASSERT__WRAP(CTEST__STR_CMP(a, GT, b))
+#define CTEST_EXPECT_STR_GE(a, b) EXPECT__WRAP(CTEST__STR_CMP(a, GE, b))
+#define CTEST_ASSERT_STR_GE(a, b) ASSERT__WRAP(CTEST__STR_CMP(a, GE, b))
 
-#define CTEST__NEAR(a, b, absdiff, drop_on_fail) \
-    ctest__check_near(__FILE__, __LINE__, a, #a, b, #b, absdiff, drop_on_fail)
-#define CTEST_EXPECT_NEAR(a, b, absdiff) CTEST__NEAR(a, b, absdiff, 0)
-#define CTEST_ASSERT_NEAR(a, b, absdiff) CTEST__NEAR(a, b, absdiff, 1)
+#define CTEST__NEAR(a, b, absdiff) \
+    ctest__check_near(__FILE__, __LINE__, a, #a, b, #b, absdiff)
+#define CTEST_EXPECT_NEAR(a, b, absdiff) \
+    EXPECT__WRAP(CTEST__NEAR(a, b, absdiff))
+#define CTEST_ASSERT_NEAR(a, b, absdiff) \
+    ASSERT__WRAP(CTEST__NEAR(a, b, absdiff))
 
 #ifndef CTEST_NO_SHORT_NAMES
 #  define ASSERT_TRUE     CTEST_ASSERT_TRUE
@@ -238,47 +250,42 @@ static inline const char *ctest__cmp_to_str(enum ctest__cmp cmp) {
     assert(!"Invalid ctest__cmp");
 }
 
-void ctest__check_bool(
+int ctest__check_bool(
     const char *fpath, int lineno,
     _Bool a, const char * a_str,
-    _Bool b,
-    _Bool drop_on_failure
+    _Bool b
 ) {
-    if (a == b) return;
+    if (a == b) return 1;
     fprintf(stderr, "%s:%d: Failure\n", fpath, lineno);
     fprintf(stderr, "Expected: (%s) to be %s\n",
         a_str, b ? "true" : "false");
-
-    if (drop_on_failure) ctest_drop_test();
-    else                 ctest_fail_test();
+    ctest_fail_test();
+    return 0;
 }
 
-void ctest__check_near(
+int ctest__check_near(
     const char *fpath, int lineno,
     double a, const char * a_str,
     double b, const char * b_str,
-    double absdiff,
-    _Bool drop_on_failure
+    double absdiff
 ) {
     double diff = a > b ? a - b : b - a;
-    if (diff <= absdiff) return;
+    if (diff <= absdiff) return 1;
     fprintf(stderr, "%s:%d: Failure\n", fpath, lineno);
     fprintf(stderr, "The difference between %s and %s is %g"
                     ", which exceeds %g\n", a_str, b_str, diff, absdiff);
     fprintf(stderr, "  %s evaluates to %.15lf.\n", a_str, a);
     fprintf(stderr, "  %s evaluates to %.15lf.\n", b_str, b);
-
-    if (drop_on_failure) ctest_drop_test();
-    else                 ctest_fail_test();
+    ctest_fail_test();
+    return 0;
 }
 
 #define CTEST__CMP_FUNC_IMPL(FNAME, TYPE, FMT, X) \
-void FNAME(                                       \
+int FNAME(                                        \
     const char *fpath, int lineno,                \
     TYPE a, const char * a_str,                   \
     enum ctest__cmp cmp,                          \
-    TYPE b, const char * b_str,                   \
-    _Bool drop_on_failure                         \
+    TYPE b, const char * b_str                    \
 ) {                                               \
     CTEST__CMP_XMACRO(X)                          \
     fprintf(stderr, "%s:%d: Failure\n", fpath, lineno); \
@@ -287,17 +294,17 @@ void FNAME(                                       \
     fprintf(stderr, "  lhs = " FMT "\n", a);      \
     fprintf(stderr, "  rhs = " FMT "\n", b);      \
     fprintf(stderr, "\n");                        \
-    if (drop_on_failure) ctest_drop_test();       \
-    else                 ctest_fail_test();       \
+    ctest_fail_test();                            \
+    return 0;                                     \
 }
 
-#define X(name, op) if (cmp == CTEST__CMP_ ## name && a op b) return;
+#define X(name, op) if (cmp == CTEST__CMP_ ## name && a op b) return 1;
 CTEST__CMP_FUNC_IMPL(ctest__cmp_signed,     long long signed, "%lld", X)
 CTEST__CMP_FUNC_IMPL(ctest__cmp_unsigned, long long unsigned, "%llu", X)
 CTEST__CMP_FUNC_IMPL(ctest__cmp_double,               double,   "%g", X)
 CTEST__CMP_FUNC_IMPL(ctest__cmp_ptr,   const volatile void *,   "%p", X)
 #undef X
-#define X(name, op) if (cmp == CTEST__CMP_ ## name && strcmp(a,b) op 0) return;
+#define X(name, op) if (cmp == CTEST__CMP_ ## name && strcmp(a,b) op 0) return 1;
 CTEST__CMP_FUNC_IMPL(ctest__cmp_str, const char *, "\"%s\"", X)
 #undef X
 
@@ -305,18 +312,18 @@ CTEST__CMP_FUNC_IMPL(ctest__cmp_str, const char *, "\"%s\"", X)
 static volatile enum ctest_status ctest_status;
 static jmp_buf ctest_longjmp_env;
 
-void ctest_drop_test(void) {
-    ctest_status = CTEST_FAILURE;
-    longjmp(ctest_longjmp_env, 1);
+void ctest__cleanup(const int * armed) {
+    if (*armed) longjmp(ctest_longjmp_env, 1);
 }
 
 void ctest_fail_test(void) {
     ctest_status = CTEST_FAILURE;
 }
 
-void ctest_drop_test_loud(const char *fpath, int line) {
+void ctest_drop_test(const char *fpath, int line) {
     fprintf(stderr, "%s:%d: Failure\n", fpath, line);
-    ctest_drop_test(); \
+    ctest_status = CTEST_FAILURE;
+    longjmp(ctest_longjmp_env, 1);
 }
 
 void ctest_skip_test(void) {
