@@ -610,6 +610,4 @@ int ctest_main(int argc, char *argv[]) {
     return failure_cnt == 0 ? EXIT_SUCCESS : EXIT_FAILURE;
 }
 
-#undef CTEST_IMPLEMENTATION
-
 #endif /* CTEST_IMPLEMENTATION */
