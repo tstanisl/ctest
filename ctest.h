@@ -434,7 +434,7 @@ static struct ctest_config ctest_get_config(int argc, char ** argv) {
             cfg.filter = argv[i + 1];
         } else if (strncmp(argv[i], "--ctest_filter=", 15) == 0) {
             cfg.filter = argv[i] + 15;
-        } else if (strncmp(argv[i], "--ctest_", 7) == 0) {
+        } else if (strncmp(argv[i], "--ctest_", 8) == 0) {
             // unknown option
             return cfg;
         }
