@@ -289,6 +289,7 @@ _Generic(1 ? (a) : (b)                        \
 #include <stdio.h>
 #include <string.h>
 #include <time.h>
+#include <unistd.h>
 
 #define CTEST__CMP_XMACRO(X) \
     X(EQ, ==) \
@@ -403,12 +404,21 @@ void ctest_log(const char * fmt, ...) {
 #define CTEST_COLOR_YELLOW  "\033[0;33m"
 #define CTEST_COLOR_DEFAULT "\033[0m"
 
-static const char *ctest_status_string[] = {
+static const char *ctest_status_color_string[] = {
     [CTEST_RUNNING] = CTEST_COLOR_GREEN  "[ RUNNING    ]" CTEST_COLOR_DEFAULT,
     [CTEST_SKIPPED] = CTEST_COLOR_YELLOW "[    SKIPPED ]" CTEST_COLOR_DEFAULT,
     [CTEST_SUCCESS] = CTEST_COLOR_GREEN  "[    SUCCESS ]" CTEST_COLOR_DEFAULT,
     [CTEST_FAILURE] = CTEST_COLOR_RED    "[    FAILURE ]" CTEST_COLOR_DEFAULT,
 };
+
+static const char *ctest_status_mono_string[] = {
+    [CTEST_RUNNING] = "[ RUNNING    ]",
+    [CTEST_SKIPPED] = "[    SKIPPED ]",
+    [CTEST_SUCCESS] = "[    SUCCESS ]",
+    [CTEST_FAILURE] = "[    FAILURE ]",
+};
+
+static const char **ctest_status_string = 0;
 
 static ctest * ctest_head;
 static ctest ** ctest_tail_p = &ctest_head;
@@ -475,6 +485,7 @@ struct ctest_config {
     int shuffle;
     int random_seed;
     int is_correct;
+    int color;
     char * filter;
 };
 
@@ -512,6 +523,12 @@ static struct ctest_config ctest_get_config(int * argc_p, char ** argv) {
         } else if (strncmp(argv[i], "--ctest_random_seed=", 20) == 0) {
             if (ctest_parse_int(argv[i] + 20, &cfg.random_seed) != 0)
                 return cfg;
+        } else if (strcmp(argv[i], "--ctest_color") == 0) {
+            if (ctest_parse_int(argv[++i], &cfg.color) != 0)
+                return cfg;
+        } else if (strncmp(argv[i], "--ctest_color=", 14) == 0) {
+            if (ctest_parse_int(argv[i] + 14, &cfg.color) != 0)
+                return cfg;
         } else if (strncmp(argv[i], "--ctest_", 8) == 0) {
             // unknown option
             return cfg;
@@ -522,6 +539,9 @@ static struct ctest_config ctest_get_config(int * argc_p, char ** argv) {
 
     argv[non_ctest_opts] = 0;
     *argc_p = non_ctest_opts;
+
+    if (cfg.color == 0)
+        cfg.color = isatty(STDERR_FILENO) ? 1 : -1;
     cfg.is_correct = 1;
 
     return cfg;
@@ -533,6 +553,7 @@ static void ctest_show_help(void) {
         "The behavior can be controlled with following options:"
         "\n\n"
         "--ctest_also_run_disabled_tests\n\tRun disabled tests.\n"
+        "--ctest_color=INTEGER\n\t< 0 - no, 0 - auto, > 0 - yes.\n"
         "--ctest_filter=PATTERN\n\tUse filter to select tests.\n"
         "--ctest_list_tests\n\tLists all tests.\n"
         "--ctest_repeat=INTEGER\n\tRepeat tests given times.\n"
@@ -653,9 +674,10 @@ static size_t ctest_run_tests(struct ctest_config cfg) {
     }
 
     if (disabled_cnt > 0) {
-        fprintf(stderr, "    %s%zu test%s DISABLED.\n%s", CTEST_COLOR_YELLOW,
+        fprintf(stderr, "    %s%zu test%s DISABLED.\n%s",
+                cfg.color > 0 ? CTEST_COLOR_YELLOW : "",
                 disabled_cnt, disabled_cnt == 1 ? " is" : "s are",
-                CTEST_COLOR_DEFAULT);
+                cfg.color > 0 ? CTEST_COLOR_DEFAULT : "");
     }
 
     return failure_cnt;
@@ -669,6 +691,9 @@ int ctest_main(int * argc_p, char *argv[]) {
         ctest_show_help();
         return EXIT_FAILURE;
     }
+
+    ctest_status_string = cfg.color > 0 ? ctest_status_color_string
+                                        : ctest_status_mono_string;
 
     ctest_select_tests(cfg);
 
