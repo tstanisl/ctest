@@ -312,8 +312,8 @@ int ctest__check_bool(
     _Bool b
 ) {
     if (a == b) return 1;
-    fprintf(stderr, "%s:%d: Failure\n", fpath, lineno);
-    fprintf(stderr, "Expected: (%s) to be %s\n",
+    fprintf(stdout, "%s:%d: Failure\n", fpath, lineno);
+    fprintf(stdout, "Expected: (%s) to be %s\n",
         a_str, b ? "true" : "false");
     ctest_fail_test();
     return 0;
@@ -327,11 +327,11 @@ int ctest__check_near(
 ) {
     double diff = a > b ? a - b : b - a;
     if (diff <= absdiff) return 1;
-    fprintf(stderr, "%s:%d: Failure\n", fpath, lineno);
-    fprintf(stderr, "The difference between %s and %s is %g"
+    fprintf(stdout, "%s:%d: Failure\n", fpath, lineno);
+    fprintf(stdout, "The difference between %s and %s is %g"
                     ", which exceeds %g\n", a_str, b_str, diff, absdiff);
-    fprintf(stderr, "  %s evaluates to %.15lf.\n", a_str, a);
-    fprintf(stderr, "  %s evaluates to %.15lf.\n", b_str, b);
+    fprintf(stdout, "  %s evaluates to %.15lf.\n", a_str, a);
+    fprintf(stdout, "  %s evaluates to %.15lf.\n", b_str, b);
     ctest_fail_test();
     return 0;
 }
@@ -344,12 +344,12 @@ int FNAME(                                        \
     TYPE b, const char * b_str                    \
 ) {                                               \
     CTEST__CMP_XMACRO(X)                          \
-    fprintf(stderr, "%s:%d: Failure\n", fpath, lineno); \
-    fprintf(stderr, "Expected: %s %s %s, got\n",  \
+    fprintf(stdout, "%s:%d: Failure\n", fpath, lineno); \
+    fprintf(stdout, "Expected: %s %s %s, got\n",  \
         a_str, ctest__cmp_to_str(cmp), b_str);    \
-    fprintf(stderr, "  lhs = " FMT "\n", a);      \
-    fprintf(stderr, "  rhs = " FMT "\n", b);      \
-    fprintf(stderr, "\n");                        \
+    fprintf(stdout, "  lhs = " FMT "\n", a);      \
+    fprintf(stdout, "  rhs = " FMT "\n", b);      \
+    fprintf(stdout, "\n");                        \
     ctest_fail_test();                            \
     return 0;                                     \
 }
@@ -377,7 +377,7 @@ void ctest_fail_test(void) {
 }
 
 void ctest_drop_test(const char *fpath, int line) {
-    fprintf(stderr, "%s:%d: Failure\n", fpath, line);
+    fprintf(stdout, "%s:%d: Failure\n", fpath, line);
     ctest_status = CTEST_FAILURE;
     longjmp(ctest_longjmp_env, 1);
 }
@@ -395,7 +395,7 @@ int ctest_failed(void) {
 void ctest_log(const char * fmt, ...) {
     va_list ap;
     va_start(ap, fmt);
-    (void)vfprintf(stderr, fmt, ap);
+    (void)vfprintf(stdout, fmt, ap);
     va_end(ap);
 }
 
@@ -435,7 +435,7 @@ void ctest_register(ctest * test) {
 
 static void ctest_run(ctest * t) {
     ctest_status = CTEST_RUNNING;
-    fprintf(stderr, "%s: %s\n", ctest_status_string[ctest_status], t->name);
+    fprintf(stdout, "%s: %s\n", ctest_status_string[ctest_status], t->name);
 
     if (t->_init)
         if (setjmp(ctest_longjmp_env) == 0)
@@ -451,7 +451,7 @@ static void ctest_run(ctest * t) {
     }
 
     t->_status = ctest_status;
-    fprintf(stderr, "%s: %s\n", ctest_status_string[ctest_status], t->name);
+    fprintf(stdout, "%s: %s\n", ctest_status_string[ctest_status], t->name);
 }
 
 static void ctest_list_results(enum ctest_status status, _Bool list) {
@@ -464,12 +464,12 @@ static void ctest_list_results(enum ctest_status status, _Bool list) {
         return;
 
     const char * status_str = ctest_status_string[status];
-    fprintf(stderr, "%s %zu tests.\n", status_str, count);
+    fprintf(stdout, "%s %zu tests.\n", status_str, count);
 
     if (list) {
         CTEST_FOR_EACH(node)
             if (node->_status == status)
-                fprintf(stderr, "%s %s\n", status_str, node->name);
+                fprintf(stdout, "%s %s\n", status_str, node->name);
     }
 }
 
@@ -541,7 +541,7 @@ static struct ctest_config ctest_get_config(int * argc_p, char ** argv) {
     *argc_p = non_ctest_opts;
 
     if (cfg.color == 0)
-        cfg.color = isatty(STDERR_FILENO) ? 1 : -1;
+        cfg.color = isatty(STDOUT_FILENO) ? 1 : -1;
     cfg.is_correct = 1;
 
     return cfg;
@@ -662,19 +662,19 @@ static size_t ctest_run_tests(struct ctest_config cfg) {
             ++disabled_cnt;
         }
 
-    fprintf(stderr, "\n=== SUMMARY ===\n\n");
+    fprintf(stdout, "\n=== SUMMARY ===\n\n");
     ctest_list_results(CTEST_SUCCESS, 0);
     ctest_list_results(CTEST_SKIPPED, 1);
     ctest_list_results(CTEST_FAILURE, 1);
 
     if (failure_cnt == 0) {
-        fprintf(stderr, "\nAll tests passed.\n");
+        fprintf(stdout, "\nAll tests passed.\n");
     } else {
-        fprintf(stderr, "\n%zu tests FAILED.\n", failure_cnt);
+        fprintf(stdout, "\n%zu tests FAILED.\n", failure_cnt);
     }
 
     if (disabled_cnt > 0) {
-        fprintf(stderr, "    %s%zu test%s DISABLED.\n%s",
+        fprintf(stdout, "    %s%zu test%s DISABLED.\n%s",
                 cfg.color > 0 ? CTEST_COLOR_YELLOW : "",
                 disabled_cnt, disabled_cnt == 1 ? " is" : "s are",
                 cfg.color > 0 ? CTEST_COLOR_DEFAULT : "");
@@ -704,7 +704,7 @@ int ctest_main(int * argc_p, char *argv[]) {
     }
 
     if (cfg.shuffle) {
-        fprintf(stderr, "Random seed is %d.\n", cfg.random_seed);
+        fprintf(stdout, "Random seed is %d.\n", cfg.random_seed);
         srand(cfg.random_seed);
     }
 
@@ -714,7 +714,7 @@ int ctest_main(int * argc_p, char *argv[]) {
             ctest_head = ctest_shuffle_run_list(ctest_head);
         }
         if (rep > 0)
-            fprintf(stderr, "\nRepeating test, iteration %d ...\n\n", rep);
+            fprintf(stdout, "\nRepeating test, iteration %d ...\n\n", rep);
         failure_cnt += ctest_run_tests(cfg);
     }
 
