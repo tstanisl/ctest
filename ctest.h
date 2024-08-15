@@ -427,15 +427,17 @@ static void ctest_run(ctest * t) {
     ctest_status = CTEST_RUNNING;
     fprintf(stderr, "%s: %s\n", ctest_status_string[ctest_status], t->name);
 
-    if (setjmp(ctest_longjmp_env) == 0)
-        t->_init();
+    if (t->_init)
+        if (setjmp(ctest_longjmp_env) == 0)
+            t->_init();
 
     if (ctest_status == CTEST_RUNNING) {
         if (setjmp(ctest_longjmp_env) == 0)
             t->_exec();
         if (ctest_status == CTEST_RUNNING)
             ctest_status = CTEST_SUCCESS;
-        t->_drop();
+        if (t->_drop)
+            t->_drop();
     }
 
     t->_status = ctest_status;
