@@ -29,7 +29,7 @@ void ctest_fail_test(void);
 void ctest_drop_test(const char *fpath, int line);
 void ctest_skip_test(void);
 int ctest_failed(void);
-int ctest_main(int argc, char * argv[]);
+int ctest_main(int * argc, char * argv[]);
 void ctest_log(const char * fmt, ...) __attribute__ ((format (printf, 1, 2)));
 
 enum ctest_status {
@@ -145,7 +145,7 @@ void ctest__cleanup(const int *);
 
 #define CTEST_MAIN() \
 int main(int argc, char *argv[]) { \
-    return ctest_main(argc, argv); \
+    return ctest_main(&argc, argv); \
 }
 #define CTEST_LOG(...) ctest_log(__VA_ARGS__)
 
@@ -480,9 +480,11 @@ static int ctest_parse_int(const char * str, int * dst) {
     return sscanf(str, "%d%c", dst, (char[1]){0}) != 1;
 }
 
-static struct ctest_config ctest_get_config(int argc, char ** argv) {
+static struct ctest_config ctest_get_config(int * argc_p, char ** argv) {
     struct ctest_config cfg = { .random_seed = (int)time(0) };
+    int argc = *argc_p;
 
+    int non_ctest_opts = 1;
     for (int i = 1; i < argc; ++i) {
         if (strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0) {
             cfg.show_help = 1;
@@ -491,7 +493,7 @@ static struct ctest_config ctest_get_config(int argc, char ** argv) {
         } else if (strcmp(argv[i], "--ctest_also_run_disabled_tests") == 0) {
             cfg.also_run_disabled_tests = 1;
         } else if (strcmp(argv[i], "--ctest_repeat") == 0) {
-            if (ctest_parse_int(argv[i + 1], &cfg.repeat) != 0)
+            if (ctest_parse_int(argv[++i], &cfg.repeat) != 0)
                 return cfg;
         } else if (strncmp(argv[i], "--ctest_repeat=", 15) == 0) {
             if (ctest_parse_int(argv[i] + 15, &cfg.repeat) != 0)
@@ -499,11 +501,11 @@ static struct ctest_config ctest_get_config(int argc, char ** argv) {
         } else if (strcmp(argv[i], "--ctest_shuffle") == 0) {
             cfg.shuffle = 1;
         } else if (strcmp(argv[i], "--ctest_filter") == 0) {
-            cfg.filter = argv[i + 1];
+            cfg.filter = argv[++i];
         } else if (strncmp(argv[i], "--ctest_filter=", 15) == 0) {
             cfg.filter = argv[i] + 15;
         } else if (strcmp(argv[i], "--ctest_random_seed") == 0) {
-            if (ctest_parse_int(argv[i + 1], &cfg.random_seed) != 0)
+            if (ctest_parse_int(argv[++i], &cfg.random_seed) != 0)
                 return cfg;
         } else if (strncmp(argv[i], "--ctest_random_seed=", 20) == 0) {
             if (ctest_parse_int(argv[i] + 20, &cfg.random_seed) != 0)
@@ -511,9 +513,13 @@ static struct ctest_config ctest_get_config(int argc, char ** argv) {
         } else if (strncmp(argv[i], "--ctest_", 8) == 0) {
             // unknown option
             return cfg;
+        } else {
+            argv[non_ctest_opts++] = argv[i];
         }
     }
 
+    argv[non_ctest_opts] = 0;
+    *argc_p = non_ctest_opts;
     cfg.is_correct = 1;
 
     return cfg;
@@ -653,8 +659,8 @@ static size_t ctest_run_tests(struct ctest_config cfg) {
     return failure_cnt;
 }
 
-int ctest_main(int argc, char *argv[]) {
-    struct ctest_config cfg = ctest_get_config(argc, argv);
+int ctest_main(int * argc_p, char *argv[]) {
+    struct ctest_config cfg = ctest_get_config(argc_p, argv);
     ctest_tail_p = 0; // freeze tests
 
     if (!cfg.is_correct || cfg.show_help) {
