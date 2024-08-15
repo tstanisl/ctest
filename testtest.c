@@ -42,6 +42,21 @@ TEST(Fibonacci, DISABLED_Fail4) {
 	FAIL();
 }
 
+TEST(Cleanup, AssertTrue) {
+    EXPECT_TRUE(2 == 4) {
+        LOG("expect false\n");
+    }
+    ASSERT_TRUE(2 == 2) {
+        LOG("impossible happened\n");
+    }
+    LOG("should print\n");
+    ASSERT_TRUE(3 == 2) {
+        LOG("cleanup\n");
+        return;
+    }
+    LOG("should never print\n");
+}
+
 TEST(Types, Basic) {
 	char txt[] = "hello";
 	EXPECT_STR_EQ("hello", txt);
