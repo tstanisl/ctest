@@ -471,6 +471,7 @@ struct ctest_config {
     int also_run_disabled_tests;
     int show_help;
     int shuffle;
+    int random_seed;
     int is_correct;
     char * filter;
 };
@@ -480,7 +481,7 @@ static int ctest_parse_int(const char * str, int * dst) {
 }
 
 static struct ctest_config ctest_get_config(int argc, char ** argv) {
-    struct ctest_config cfg = { 0 };
+    struct ctest_config cfg = { .random_seed = (int)time(0) };
 
     for (int i = 1; i < argc; ++i) {
         if (strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0) {
@@ -501,6 +502,12 @@ static struct ctest_config ctest_get_config(int argc, char ** argv) {
             cfg.filter = argv[i + 1];
         } else if (strncmp(argv[i], "--ctest_filter=", 15) == 0) {
             cfg.filter = argv[i] + 15;
+        } else if (strcmp(argv[i], "--ctest_random_seed") == 0) {
+            if (ctest_parse_int(argv[i + 1], &cfg.random_seed) != 0)
+                return cfg;
+        } else if (strncmp(argv[i], "--ctest_random_seed=", 20) == 0) {
+            if (ctest_parse_int(argv[i] + 20, &cfg.random_seed) != 0)
+                return cfg;
         } else if (strncmp(argv[i], "--ctest_", 8) == 0) {
             // unknown option
             return cfg;
@@ -522,6 +529,7 @@ static void ctest_show_help(void) {
         "--ctest_list_tests\n\tLists all tests.\n"
         "--ctest_repeat=INTEGER\n\tRepeat tests given times.\n"
         "--ctest_shuffle\n\tShuffle tests at each iteration.\n"
+        "--ctest_random_seed\n\tRandom seed for shuffling.\n"
     );
 }
 
@@ -662,7 +670,10 @@ int ctest_main(int argc, char *argv[]) {
         return EXIT_SUCCESS;
     }
 
-    srand(time(0));
+    if (cfg.shuffle) {
+        fprintf(stderr, "Random seed is %d.\n", cfg.random_seed);
+        srand(cfg.random_seed);
+    }
 
     size_t failure_cnt = 0;
     for (int rep = 0; rep <= cfg.repeat; ++rep) {
