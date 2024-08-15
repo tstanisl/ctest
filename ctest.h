@@ -42,7 +42,10 @@ enum ctest_status {
 
 typedef struct ctest {
     const char * name;
-    void (*run)(struct ctest *);
+    void (*_init)(void);
+    void (*_exec)(void);
+    void (*_drop)(void);
+    void  *_data;
     struct ctest * _next;
     enum ctest_status _status;
 } ctest;
@@ -53,20 +56,15 @@ void ctest_register(ctest *);
  * @brief Add a test case within a test suite. Parameters must be expanded.
  */
 #define CTEST__TEST(tsuite, tcase) \
-    static void tsuite ## tcase(void);               \
-    static void tsuite ## tcase ## __wrap(ctest *);  \
-    __attribute__((constructor))                     \
-    static void tsuite ## tcase ##  __init(void) {   \
-        static ctest instance = {                    \
-            .name = #tsuite "." #tcase,              \
-            .run = tsuite ## tcase ## __wrap,        \
-        };                                           \
-        ctest_register(&instance);                   \
-    }                                                \
-    static void tsuite ## tcase ## __wrap(ctest*_) { \
-        (void)_;                                     \
-        tsuite ## tcase ();                          \
-    }                                                \
+    static void tsuite ## tcase(void);            \
+    __attribute__((constructor))                  \
+    static void tsuite ## tcase ## __ctor(void) { \
+        static ctest instance = {                 \
+            .name = #tsuite "." #tcase,           \
+            ._exec = tsuite ## tcase,             \
+        };                                        \
+        ctest_register(&instance);                \
+    }                                             \
     static void tsuite ## tcase(void)
 
 /**
@@ -77,6 +75,60 @@ void ctest_register(ctest *);
  */
 #define CTEST_TEST(test_suite, test_case) \
     CTEST__TEST(test_suite, test_case)
+
+/**
+ * @brief Add a test case within a test fixture. Parameters must be expanded.
+ */
+#define CTEST__TEST_F(tfixture, tcase) \
+    static tfixture tfixture ## __data;             \
+    /* tentative declarations */                    \
+    static void (*tfixture ## __init)(tfixture*);   \
+    static void (*tfixture ## __drop)(tfixture*);   \
+                                                    \
+    static void tfixture ## tcase ## __init(void) { \
+        if (tfixture ## __init)                     \
+            tfixture ## __init(&tfixture ## __data);\
+    }                                               \
+    static void tfixture ## tcase(tfixture *);      \
+    static void tfixture ## tcase ## __exec(void) { \
+        tfixture ## tcase(&tfixture ## __data);     \
+    }                                               \
+    static void tfixture ## tcase ## __drop(void) { \
+        if (tfixture ## __drop)                     \
+            tfixture ## __drop(&tfixture ## __data);\
+    }                                               \
+    __attribute__((constructor))                    \
+    static void tfixture ## tcase ## __ctor(void) { \
+        static ctest instance = {                   \
+            .name = #tfixture "." #tcase,           \
+            ._init = tfixture ## tcase ## __init,   \
+            ._exec = tfixture ## tcase ## __exec,   \
+            ._drop = tfixture ## tcase ## __drop,   \
+        };                                          \
+        ctest_register(&instance);                  \
+    }                                               \
+    static void tfixture ## tcase(tfixture * self __attribute__((unused)))
+
+#define CTEST_TEST_F_INIT(tfixture) \
+    static void tfixture ## __init_function(tfixture*); \
+    static void (*tfixture ## __init)(tfixture*) =      \
+        tfixture ## __init_function;                    \
+    static void tfixture ## __init_function(tfixture * self __attribute__((unused)))
+
+#define CTEST_TEST_F_DROP(tfixture) \
+    static void tfixture ## __drop_function(tfixture*); \
+    static void (*tfixture ## __drop)(tfixture*) =      \
+        tfixture ## __drop_function;                    \
+    static void tfixture ## __drop_function(tfixture * self __attribute__((unused)))
+
+/**
+ * @brief Add a test case within a test fixture. Parameters can be macros.
+ *
+ * @param tfixture a type name of the test fixture
+ * @param tcase a name of the test case with a fixture
+ */
+#define CTEST_TEST_F(test_fixture, test_case) \
+    CTEST__TEST_F(test_fixture, test_case)
 
 #define CTEST_FAIL() ctest_drop_test(__FILE__, __LINE__)
 #define CTEST_SKIP() ctest_skip_test()
@@ -219,6 +271,9 @@ _Generic(1 ? (a) : (b)                        \
 #  define FAIL            CTEST_FAIL
 #  define SKIP            CTEST_SKIP
 #  define TEST            CTEST_TEST
+#  define TEST_F          CTEST_TEST_F
+#  define TEST_F_INIT     CTEST_TEST_F_INIT
+#  define TEST_F_DROP     CTEST_TEST_F_DROP
 #  define LOG             CTEST_LOG
 #endif
 
@@ -373,10 +428,15 @@ static void ctest_run(ctest * t) {
     fprintf(stderr, "%s: %s\n", ctest_status_string[ctest_status], t->name);
 
     if (setjmp(ctest_longjmp_env) == 0)
-        t->run(t);
+        t->_init();
 
-    if (ctest_status == CTEST_RUNNING)
-        ctest_status = CTEST_SUCCESS;
+    if (ctest_status == CTEST_RUNNING) {
+        if (setjmp(ctest_longjmp_env) == 0)
+            t->_exec();
+        if (ctest_status == CTEST_RUNNING)
+            ctest_status = CTEST_SUCCESS;
+        t->_drop();
+    }
 
     t->_status = ctest_status;
     fprintf(stderr, "%s: %s\n", ctest_status_string[ctest_status], t->name);
